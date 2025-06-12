@@ -1,0 +1,13 @@
+[project]
+name = "ai-fashion-house"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11.11"
+dependencies = [
+    "browser-use>=0.2.5",
+    "deprecated>=1.2.18",
+    "google-adk>=1.1.1",
+    "langchain-google-genai>=2.1.2",
+    "rich>=14.0.0",
+]
