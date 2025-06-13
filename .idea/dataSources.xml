@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourceManagerImpl" format="xml" multifile-model="true">
+    <data-source source="LOCAL" name="@www.googleapis.com/bigquery/v2" uuid="3b6df6e1-6d39-42c3-b65b-64a2ea507723">
+      <driver-ref>bigquery</driver-ref>
+      <synchronize>true</synchronize>
+      <jdbc-driver>com.simba.googlebigquery.jdbc42.Driver</jdbc-driver>
+      <jdbc-url>jdbc:bigquery://https://www.googleapis.com/bigquery/v2:443</jdbc-url>
+      <jdbc-additional-properties>
+        <property name="ProjectId" value="build-with-ai-project" />
+      </jdbc-additional-properties>
+      <working-dir>$ProjectFileDir$</working-dir>
+    </data-source>
+  </component>
+</project>

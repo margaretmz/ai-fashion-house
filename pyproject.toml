@@ -6,8 +6,17 @@ readme = "README.md"
 requires-python = ">=3.11.11"
 dependencies = [
     "browser-use>=0.2.5",
+    "db-dtypes>=1.4.3",
     "deprecated>=1.2.18",
     "google-adk>=1.1.1",
+    "google-cloud-bigquery>=3.34.0",
+    "google-cloud-bigquery-connection>=1.18.3",
     "langchain-google-genai>=2.1.2",
+    "lxml>=5.4.0",
+    "matplotlib>=3.10.3",
+    "pandas>=2.3.0",
+    "pillow>=11.2.1",
     "rich>=14.0.0",
+    "selenium>=4.33.0",
+    "webdriver-manager>=4.0.2",
 ]
