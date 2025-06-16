@@ -1,3 +1,4 @@
+import os
 import urllib
 from typing import Optional
 
@@ -7,6 +8,11 @@ from google.cloud import bigquery
 from matplotlib import pyplot as plt
 import PIL.Image
 import urllib.request
+from dotenv import load_dotenv, find_dotenv
+from google import genai
+
+# Load environment variables
+load_dotenv(find_dotenv())
 
 # Configuration
 PROJECT_ID = "build-with-ai-project"
@@ -18,7 +24,41 @@ EMBEDDINGS_MODEL_ID = "embeddings_model"
 EMBEDDINGS_MODEL = "text-embedding-005"
 
 # Initialize BigQuery client
-client = bigquery.Client(project=PROJECT_ID)
+bigquery_client = bigquery.Client(project=PROJECT_ID)
+gemini_client = genai.Client(api_key=os.environ["GOOGLE_API_KEY"])
+
+
+def get_user_query_enhancement_prompt(user_input: str) -> str:
+    """
+    Creates a prompt enhancer for user queries to improve search results.
+
+    Returns:
+        str: Prompt enhancer string.
+    """
+    prompt = f"""
+        You are a fashion assistant that helps refine vague or casual user input into precise, vivid fashion descriptions suitable for matching against historical fashion items.
+        
+        The user provided the following input:
+        "{user_input}"
+        
+        Your task is to:
+        - Generate a **single, vivid, and fluent fashion description**.
+        - Use fashion-specific vocabulary.
+        - Describe visual motifs, color palette, garment structure, and silhouette.
+        - DO NOT include phrases like "Here is the description" or "This image shows".
+        - DO NOT format output as JSON or list—just return the **raw descriptive text**.
+        
+        The output should closely resemble fashion captions like:
+        "A floor-length evening gown in deep emerald velvet with delicate floral embroidery and a fitted bodice, flaring into a bell-shaped skirt characteristic of the mid-19th century."
+        
+        Now, based on the user's input, generate the refined description:
+        """
+
+    return gemini_client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=prompt,
+    ).text.strip()
+
 
 
 def run_bq_query(sql: str) -> bigquery.table.RowIterator:
@@ -35,7 +75,7 @@ def run_bq_query(sql: str) -> bigquery.table.RowIterator:
         Exception: If query execution fails.
     """
     try:
-        query_job = client.query(sql)
+        query_job = bigquery_client.query(sql)
         result = query_job.result()
         print(f"[✅] Job ID: {query_job.job_id} | Status: {query_job.state}")
         return result
@@ -103,8 +143,18 @@ def query_rag(
 
 if __name__ == '__main__':
 
+    tables = bigquery_client.list_tables("bigquery-public-data.the_met")  # Make an API request.
+    for table in tables:
+        print("{}.{}.{}".format(table.project, table.dataset_id, table.table_id))
+
     # Run retrieval-augmented generation query
-    results = query_rag("Vibrant still life features a collection of boldly colored, geometric-shaped objects, including a bright yellow pitcher, a red and blue", top_k=5, search_fraction=0.01)
+    # query  = get_user_query_enhancement_prompt("I'm looking for a Victorian dress with lace and red accents.")
+    # query = get_user_query_enhancement_prompt("I want something romantic with lace from the 1800s")
+    query = get_user_query_enhancement_prompt("Something extravagant for a royal ball in the 1800s.")
+
+    print(query)
+
+    results = query_rag(query, top_k=5, search_fraction=0.01)
     results.to_csv("results.csv", index=False)
 
     # visualize images
