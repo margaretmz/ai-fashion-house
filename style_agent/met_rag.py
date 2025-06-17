@@ -10,6 +10,10 @@ import PIL.Image
 import urllib.request
 from dotenv import load_dotenv, find_dotenv
 from google import genai
+from google.cloud import storage
+from urllib.parse import urlparse
+from PIL import Image
+import io
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -120,7 +124,7 @@ def query_rag(
     SELECT query.query,
     distance,
     base.content,
-    base.original_image_url
+    base.gcs_url,
     FROM VECTOR_SEARCH(
       TABLE `{PROJECT_ID}.{DATASET_ID}.{EMBEDDINGS_TABLE_ID}`,
       'text_embedding',
@@ -141,42 +145,81 @@ def query_rag(
     return results
 
 
+def query_met_rag(
+        user_query: str,
+        top_k: int = 5,
+        search_fraction: float = 0.01
+) -> Optional[list[str]]:
+    """
+    Retrieves images from the MET dataset using a retrieval-augmented generation (RAG) that matches user queries
+
+    Returns:
+        List of image URLs that match the user's query.
+    """
+    enhanced_query = get_user_query_enhancement_prompt(user_query)
+    print(f"[<UNK>] Retrieving {enhanced_query}.")
+    rag_results =  query_rag(enhanced_query, top_k=top_k, search_fraction=search_fraction)
+    if rag_results.empty:
+        print("[❌] No results found for the query.")
+        return None
+    print(f"[✅] Found {len(rag_results)} results for the query.")
+    rag_results.to_csv("rag_results.csv", index=False)
+    images =  rag_results['gcs_url'].tolist()
+    create_met_moodboard(images)
+    return images
+
+
+def create_met_moodboard(images: list[str], output_file: str = "moodboard.png") -> None:
+    """
+    Creates a moodboard image from a list of GCS-native image URLs (gs://bucket/path/to/image).
+
+    Args:
+        images (list[str]): List of gs:// image URLs.
+        output_file (str): Path to save the moodboard image.
+    """
+    if not images:
+        raise ValueError("The image list is empty.")
+
+    n_cols = 3
+    n_rows = (len(images) + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(10, 5 * n_rows))
+    axes = axes.flatten() if isinstance(axes, np.ndarray) else [axes]
+
+    client = storage.Client()
+
+    def load_image_from_gcs(gs_url: str) -> Image.Image:
+        parsed = urlparse(gs_url)
+        bucket_name = parsed.netloc
+        blob_path = parsed.path.lstrip("/")
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_path)
+        img_bytes = blob.download_as_bytes()
+        return Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+    for i, gs_url in enumerate(images):
+        ax = axes[i]
+        ax.axis("off")
+        try:
+            image = load_image_from_gcs(gs_url)
+            ax.imshow(np.array(image))
+        except Exception as e:
+            ax.set_title("Image not available", fontsize=8)
+            print(f"[Warning] Failed to load image from {gs_url}: {e}")
+
+    # Hide unused axes
+    for j in range(len(images), len(axes)):
+        axes[j].axis("off")
+
+    plt.tight_layout()
+    plt.savefig(output_file, bbox_inches="tight")
+    plt.close()
+    print(f"[Info] Moodboard saved to {output_file}")
+
+
 if __name__ == '__main__':
 
     tables = bigquery_client.list_tables("bigquery-public-data.the_met")  # Make an API request.
     for table in tables:
         print("{}.{}.{}".format(table.project, table.dataset_id, table.table_id))
-
-    # Run retrieval-augmented generation query
-    # query  = get_user_query_enhancement_prompt("I'm looking for a Victorian dress with lace and red accents.")
-    # query = get_user_query_enhancement_prompt("I want something romantic with lace from the 1800s")
-    query = get_user_query_enhancement_prompt("Something extravagant for a royal ball in the 1800s.")
-
-    print(query)
-
-    results = query_rag(query, top_k=5, search_fraction=0.01)
-    results.to_csv("results.csv", index=False)
-
-    # visualize images
-    n_cols = 2
-    n_rows = (len(results) + n_cols - 1) // n_cols
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(10, 5 * n_rows))
-    # Flatten axes for uniform indexing
-    axes = axes.flatten() if n_rows > 1 else axes
-    for i, (index, row) in enumerate(results.iterrows()):
-        ax = axes[i]
-        try:
-            with urllib.request.urlopen(row['original_image_url']) as url:
-                image = PIL.Image.open(url)
-                ax.imshow(np.array(image))
-                ax.set_title(f"Distance: {row['distance']:.4f}")
-        except Exception as e:
-            ax.set_title("Image not available")
-        ax.axis('off')
-
-    # Hide any unused axes
-    for j in range(i + 1, len(axes)):
-        axes[j].axis('off')
-
-    plt.tight_layout()
-    plt.show()
+    results = query_met_rag("A pink Victorian dress with lace and floral patterns, suitable for a royal ball in the 1800s.", top_k=5, search_fraction="0.5")
+    print(results)

@@ -5,6 +5,12 @@ from selenium.webdriver.chrome.options import Options
 import time
 
 def take_fullpage_screenshot(url, output_file='screenshot.png'):
+    """
+    Takes a full-page screenshot of the given URL using Selenium WebDriver.
+    :param url:
+    :param output_file:
+    :return:
+    """
     options = Options()
     options.add_argument("--headless=new")  # new headless mode
     options.add_argument("--window-size=1920,1080")  # initial window size
@@ -21,14 +27,6 @@ def take_fullpage_screenshot(url, output_file='screenshot.png'):
     driver.save_screenshot(output_file)
     driver.quit()
     print(f"Screenshot saved to {output_file}")
-
-
-def get_met_data(query: str) -> dict:
-    """
-    Fetch metadata from the MET API based on a query.
-    :param query: Search query for the MET API.
-    :return: Metadata dictionary.
-    """
 
 
 if __name__ == '__main__':
