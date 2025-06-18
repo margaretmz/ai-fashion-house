@@ -1,94 +1,3 @@
--- # Filter data
-
--- SELECT COUNT(*) FROM `bigquery-public-data.the_met.objects` where department = "Costume Institute" and is_public_domain = TRUE;
-
-SELECT count(*) FROM `bigquery-public-data.the_met.objects` where object_name Like "%Dress%" OR object_name  Like "%Evening dress%";
-# color, medium
-
-SELECT DISTINCT classification from `bigquery-public-data.the_met.objects`;
-
-
-SELECT * from `bigquery-public-data.the_met.objects` where object_id = 157642;
-
-SELECT
-  images.gcs_url,
-  images.original_image_url,
-  objects.department,
-  objects.title
-FROM (
-  SELECT
-    *,
-    ROW_NUMBER() OVER (PARTITION BY original_image_url ORDER BY object_id) AS rn
-  FROM
-    `bigquery-public-data.the_met.images`
-  WHERE
-    original_image_url IS NOT NULL
-    AND gcs_url IS NOT NULL
-) AS images
-JOIN
-  `bigquery-public-data.the_met.objects` AS objects
-ON
-  images.object_id = objects.object_id
-WHERE
-  images.rn = 1
-  AND objects.department = "Costume Institute"
-  AND objects.is_public_domain = TRUE
-ORDER BY
-  objects.title
-LIMIT 100;
-
-
-
--- SELECT
---   images.gcs_url,
---   images.original_image_url,
---   objects.department,
---   objects.title
--- FROM (
---   SELECT
---     *,
---     ROW_NUMBER() OVER (PARTITION BY original_image_url ORDER BY object_id) AS rn
---   FROM
---     `bigquery-public-data.the_met.images`
---   WHERE
---     original_image_url IS NOT NULL
---     AND gcs_url IS NOT NULL
--- ) AS images
--- JOIN
---   `bigquery-public-data.the_met.objects` AS objects
--- ON
---   images.object_id = objects.object_id
--- WHERE
---   images.rn = 1
---   AND objects.department = "Costume Institute"
---   AND objects.is_public_domain = TRUE
--- ORDER BY
---   objects.title
--- LIMIT 100;
-
-
--- SELECT
---   COUNT(*) AS total_unique_images
--- FROM (
---   SELECT
---     images.original_image_url,
---     ROW_NUMBER() OVER (PARTITION BY images.original_image_url ORDER BY images.object_id) AS rn
---   FROM
---     `bigquery-public-data.the_met.images` AS images
---   JOIN
---     `bigquery-public-data.the_met.objects` AS objects
---   ON
---     images.object_id = objects.object_id
---   WHERE
---     images.original_image_url IS NOT NULL
---     AND images.gcs_url IS NOT NULL
---     AND objects.department = "Costume Institute"
---     AND objects.is_public_domain = TRUE
--- ) AS deduped
--- WHERE rn = 1;
-
-
-# Generate Captions
 
 CREATE OR REPLACE MODEL `met_data.gemini_model`
   REMOTE WITH CONNECTION `us.met_data_conn`
@@ -98,85 +7,9 @@ CREATE OR REPLACE MODEL `met_data.embeddings_model`
   REMOTE WITH CONNECTION `us.met_data_conn`
   OPTIONS (ENDPOINT = 'text-embedding-005');
 
+# Create Tables
 
-SELECT
-  ml_generate_text_result['candidates'][0]['content'] AS generated_text,
-  * EXCEPT (ml_generate_text_result)
-FROM
-  ML.GENERATE_TEXT(
-    MODEL `met_data.gemini_model`,(
-      SELECT
-        CONCAT('Extract from the image the visual motifs, color palette, garment structure and dress silhouettes. The output must be in JSON format. Image URL: ', gcs_url) AS prompt,
-        *
-      FROM
-        `bigquery-public-data.the_met.images`
-      LIMIT 5
-    ),
-    STRUCT(
-      0.2 AS temperature,
-      500 AS max_output_tokens));
-
-
-SELECT
-  ml_generate_text_result['candidates'][0]['content'] AS generated_text,
-  * EXCEPT (ml_generate_text_result)
-FROM
-  ML.GENERATE_TEXT(
-    MODEL `met_data.gemini_model`,(
-      SELECT
-        FORMAT(
-          '''Generate a short and vivid fashion description of the image focusing on:
-          - Visual motifs
-          - Color palette
-          - Garment structure
-          - Dress silhouette
-
-          Additionally, incorporate this metadata:
-          - Department: %s
-          - Culture: %s
-          - Period: %s
-          - Artist: %s
-
-          Return the result in Plain Text format.
-          Image URL: %s''',
-          IFNULL(objects.department, '(not specified)'),
-          IFNULL(objects.culture, '(not specified)'),
-          IFNULL(objects.period, '(not specified)'),
-          IFNULL(objects.artist_display_name, '(not specified))'),
-          images.gcs_url
-        ) AS prompt,
-        images.gcs_url,
-        images.original_image_url,
-        objects.title,
-        objects.department
-      FROM (
-        SELECT
-          *,
-          ROW_NUMBER() OVER (PARTITION BY original_image_url ORDER BY object_id) AS rn
-        FROM
-          `bigquery-public-data.the_met.images`
-        WHERE
-          original_image_url IS NOT NULL
-          AND gcs_url IS NOT NULL
-      ) AS images
-      JOIN
-        `bigquery-public-data.the_met.objects` AS objects
-      ON
-        images.object_id = objects.object_id
-      WHERE
-        images.rn = 1
-        AND objects.department = "Costume Institute"
-        AND objects.is_public_domain = TRUE
-      ORDER BY
-        objects.title
-      LIMIT 5
-    ),
-    STRUCT(
-      0.2 AS temperature,
-      500 AS max_output_tokens
-    )
-  );
-
+# create ai_ouputs table
 
 CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs` AS
 SELECT
@@ -247,7 +80,7 @@ FROM
   );
 
 
-# Format
+# create ai_ouputs formatted table
 
 DROP TABLE IF EXISTS `met_data.fashion_ai_outputs_formatted`;
 CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs_formatted` AS
@@ -259,7 +92,7 @@ SELECT
 FROM
   `met_data.fashion_ai_outputs`;
 
-# RAG
+# Setup RAG
 
 # embeddings
 CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs_embeddings` AS
