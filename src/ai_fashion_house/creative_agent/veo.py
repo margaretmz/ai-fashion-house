@@ -29,7 +29,23 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 
+CAPTION_PROMPT = (
+    "Write a vivid and stylish caption for this fashion image. "
+    "Be descriptive and imaginative—highlight the clothing, colors, textures, and overall style. "
+    "Focus on the dress and the model's pose if visible. "
+    "If the model is not shown and only the dress is visible, assume it is worn by a tall, elegant runway model "
+    "with confident posture and fluid motion, walking mid-stride under soft, ambient lighting. "
+    "The caption should feel like it belongs in a high-end fashion video. "
+    "Be meticulous about every visual detail in the image, Including the model's pose, expression, and the overall mood of the scene. "
+)
+
+
 def save_generated_videos(operation_response: types.GenerateVideosResponse) -> None:
+    """
+    Save the generated videos from the operation response to the specified output folder.
+    :param operation_response:
+    :return:
+    """
     output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
     output_folder.mkdir(parents=True, exist_ok=True)
     for n, generated_video in enumerate(operation_response.generated_videos):
@@ -42,14 +58,15 @@ async def generate_video(image_path: str, tool_context: Optional[ToolContext] = 
     """
     Create a full-body fashion video of a model wearing a dress from an image.
     Args:
-        image_path (str): Path to the input image file.
+        prompt (str): The text prompt describing the video to be generated.
+        image_path (str): Path to the input image used as a reference for the video.
         tool_context (Optional[ToolContext]): Tool context for loading artifacts.
     Returns:
         dict[str, Any]: A dictionary containing the status and message of the operation.
     """
     try:
         if tool_context:
-            image_artifact = await tool_context.load_artifact("generated_image.png") if tool_context else None
+            image_artifact = await tool_context.load_artifact(image_path) if tool_context else None
             if not image_artifact:
                 raise ValueError("No image artifact found. Please provide a valid image.")
         else:
@@ -62,12 +79,12 @@ async def generate_video(image_path: str, tool_context: Optional[ToolContext] = 
                     data=image_data
                 )
             )
+
+        prompt = await generate_reference_image_prompt(image_artifact)
+
         operation = client.models.generate_videos(
             model="veo-2.0-generate-001",
-            prompt=(
-                "A full-body fashion video of a model wearing the dress in the image. "
-                "The camera captures the model from head to toe in soft lighting, clearly showing the fabric movement and the model's full pose, including arms and hands."
-            ),
+            prompt=prompt,
             image=image_artifact.file_data,
             config=types.GenerateVideosConfig(
                 person_generation="allow_adult",  # "dont_allow" or "allow_adult"
@@ -92,5 +109,25 @@ async def generate_video(image_path: str, tool_context: Optional[ToolContext] = 
         }
 
 
+async def generate_reference_image_prompt(image_artifact: types.Part) -> str:
+    """
+    Generate a descriptive prompt for the video based on the provided image data.
+    :param image_artifact: The image artifact containing the image data.
+    :return:
+    """
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=[
+            image_artifact,
+            types.Part.from_text(
+                text=CAPTION_PROMPT,
+            )
+        ]
+    )
+    prompt = response.text.strip()
+    return prompt
+
+
 if __name__ == '__main__':
-    asyncio.run(generate_video(image_path="/Users/haruiz/open-source/ai-fashion-house/outputs/generated_image_1.png"))
+    image_path = "/Users/haruiz/open-source/ai-fashion-house/outputs/generated_image_1.png"
+    asyncio.run(generate_video(image_path))

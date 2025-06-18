@@ -47,7 +47,6 @@ async def call_agent_async(agent: BaseAgent, prompt: str) -> None:
     events = runner.run_async(user_id=USER_ID, session_id=SESSION_ID, new_message=content)
 
     async for event in events:
-        # print(f"Session state: {state.keys()}")
         if event.is_final_response() and event.content:
             response_text = event.content.parts[0].text
             logger.info(f"Final response from {event.author}")
@@ -59,13 +58,15 @@ async def call_agent_async(agent: BaseAgent, prompt: str) -> None:
 async def main():
 
     prompts = [
-        #"I’m looking for inspiration for a A red Victorian dress with lace and floral patterns, suitable for a royal ball in the 1800s.",
-        # "I need ideas for a modern streetwear outfit that combines vintage denim with futuristic accessories.",
-        # "I want to create a moodboard for a 1920s flapper dress with sequins and feathers, perfect for a Gatsby-themed party.",
+        "I’m looking for inspiration for a A red Victorian dress with lace and floral patterns, suitable for a royal ball in the 1800s.",
+        "I need ideas for a modern streetwear outfit that combines vintage denim with futuristic accessories.",
+        "I want to create a moodboard for a 1920s flapper dress with sequins and feathers, perfect for a Gatsby-themed party.",
         "I’m looking for inspiration for a 1960s mod dress with bold geometric patterns and bright colors, suitable for a retro-themed photoshoot.",
-        #"I need ideas for a victorian-inspired gown with intricate lace details and a corset, suitable for a historical reenactment event.",
+        "I need ideas for a victorian-inspired gown with intricate lace details and a corset, suitable for a historical reenactment event.",
     ]
-    for prompt in prompts:
+
+    for i, prompt in enumerate(prompts):
+        os.environ["OUTPUT_FOLDER"] = f"outputs/prompt_{i + 1}"
         print(f"\nProcessing prompt: {prompt}")
         await call_agent_async(root_agent, prompt)
         print("\n---\n")
