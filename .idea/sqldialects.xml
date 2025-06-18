@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="SqlDialectMappings">
-    <file url="file://$PROJECT_DIR$/src/ai_fashion_house/met_rag_agent/bigq.sql" dialect="BigQuery" />
+    <file url="file://$PROJECT_DIR$/scripts/setup_rag.sql" dialect="BigQuery" />
     <file url="file://$PROJECT_DIR$/src/ai_fashion_house/met_rag_agent/tools.py" dialect="BigQuery" />
   </component>
 </project>
