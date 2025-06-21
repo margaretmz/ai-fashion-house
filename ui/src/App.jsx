@@ -6,9 +6,9 @@ import { Outlet } from 'react-router';
 import {useEffect} from "react";
 import {useWebSocketContext} from "./contexts/WebSocketContext/index.jsx";
 import {useQueryClient} from "@tanstack/react-query";
-import {createSvgIcon, createTheme, SvgIcon} from "@mui/material";
+import {createTheme} from "@mui/material";
 import AppIconSVG from './Assets/logo.svg'; // Adjust the path to your logo SVG
-
+import '@fontsource/roboto/300.css';
 
 const NAVIGATION = [
   {

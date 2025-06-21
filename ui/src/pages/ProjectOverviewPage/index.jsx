@@ -1,10 +1,33 @@
 import * as React from 'react';
-import { Container, Typography, Box } from '@mui/material';
+import {Container, Typography, Box, Paper} from '@mui/material';
 
 export default function ProjectOverviewPage() {
   return (
-    <Container maxWidth="md">
-      <Box mt={8} mb={6}>
+       <div style={{
+          width: '100%',
+          minHeight: '100vh',  // ✅ Ensures full screen height
+          overflow: 'auto',
+          background: 'linear-gradient(-45deg, #1e3c72, #2a5298, #2980b9, #6dd5fa)',
+          backgroundSize: '400% 400%',  // ✅ Required for animated flow effect
+          animation: 'gradientFlow 18s ease infinite',
+        }}>
+              <style>{`
+        @keyframes gradientFlow {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+    <Container >
+        <Paper
+          elevation={3}
+          sx={{
+            p: 4,
+            my: 10,
+            borderRadius: 4,
+            width: '100%',
+          }}
+        >
         <Typography variant="h3" gutterBottom>
           Project Overview
         </Typography>
@@ -28,7 +51,8 @@ export default function ProjectOverviewPage() {
         <Typography variant="body1" color="text.secondary" paragraph>
           By combining LLMs, retrieval-augmented generation, and autonomous tool orchestration, this project offers a glimpse into the future of creative automation — where intelligent agents assist with storytelling, research, and visual design, all in a single, seamless pipeline.
         </Typography>
-      </Box>
+      </Paper>
     </Container>
+    </div>
   );
 }

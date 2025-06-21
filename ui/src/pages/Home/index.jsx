@@ -11,7 +11,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import SendIcon from '@mui/icons-material/Send';
+import BoldIcon from '@mui/icons-material/Bolt';
 import { ReadyState } from 'react-use-websocket';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -92,7 +92,14 @@ export default function HomePage() {
   }, [inputValue, isWsReady, queryClient, sendJsonMessage, readyState]);
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+    <div style={{
+          width: '100%',
+          minHeight: '100vh',  // ✅ Ensures full screen height
+          overflow: 'auto',
+          background: 'linear-gradient(-45deg, #1e3c72, #2a5298, #2980b9, #6dd5fa)',
+          backgroundSize: '400% 400%',  // ✅ Required for animated flow effect
+          animation: 'gradientFlow 18s ease infinite',
+        }}>
       <style>{`
         @keyframes gradientFlow {
           0% { background-position: 0% 50%; }
@@ -102,16 +109,13 @@ export default function HomePage() {
       `}</style>
 
       <Container
-        sx={{
-          minHeight: '100vh',
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          px: 2,
-          background: 'linear-gradient(-45deg, #1e3c72, #2a5298, #2980b9, #6dd5fa)',
-          animation: 'gradientFlow 18s ease infinite',
-        }}
+           sx={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            px: 2,
+          }}
       >
         <Paper
           elevation={3}
@@ -143,7 +147,7 @@ export default function HomePage() {
 
             <Button
               variant="contained"
-              endIcon={!loading ? <SendIcon /> : <CircularProgress size={20} />}
+              endIcon={!loading ? <BoldIcon /> : <CircularProgress size={20} />}
               onClick={handleClick}
               disabled={loading || !isWsReady}
               sx={{ py: 1.5, px: 4, minWidth: 200 }}
