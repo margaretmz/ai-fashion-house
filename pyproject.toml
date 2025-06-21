@@ -19,9 +19,12 @@ dependencies = [
     "typer>=0.16.0",
 ]
 
-[project.scripts]
-ai-fashion-house = "ai_fashion_house:main"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pdm.scripts]
+ai-fashion-house = "ai_fashion_house.cli:app"
+
+[project.scripts]
+ai-fashion-house = "ai_fashion_house.cli:app"

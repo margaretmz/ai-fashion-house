@@ -42,33 +42,41 @@ gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
 
 def enhance_fashion_prompt(user_input: str) -> str:
     """
-    Transforms a vague or casual fashion-related user input into a refined, vivid caption.
-
-    This enhanced prompt is optimized for use with vector search or retrieval-augmented generation (RAG) tasks.
+    Transforms casual or vague fashion-related user input into a refined, vivid description
+    formatted for use in a structured retrieval or RAG pipeline.
 
     Args:
         user_input (str): Raw input string from the user describing a fashion item or concept.
 
     Returns:
-        str: A vivid, fashion-specific textual description using stylistic vocabulary.
+        str: A vivid, structured fashion description organized by section headers.
     """
     prompt = f"""
-    You are a fashion assistant that transforms casual or vague user input into refined, vivid fashion descriptions suitable for retrieval from a fashion archive.
-
-    The user said:
+    You are a fashion assistant that transforms loosely defined or casual user descriptions
+    into richly detailed, structured fashion descriptions suitable for archival retrieval.
+    
+    The user's input:
     "{user_input}"
-
-    Your output should be a single, fluent, fashion-specific caption describing the garment—its material, color, structure, silhouette, and decorative elements.
-
-    Example: 
-    "A floor-length evening gown in deep emerald velvet with delicate floral embroidery and a fitted bodice, flaring into a bell-shaped skirt characteristic of the mid-19th century."
-
-    Do NOT include introductory phrases or metadata. Write just the caption.
+    
+    In your response, incorporate vivid, fashion-specific language and organize your output using the following format:
+    
+    Overall Impression:
+    Fabric and Print:
+    Color Palette:
+    Bodice:
+    Sleeves:
+    Skirt:
+    
+    - Do NOT include any introductions like “Here is the description” or “This image shows.”  
+    - Do NOT use bullet points or extra formatting beyond the specified section headers.  
+    - Write in complete, fluent sentences appropriate for a fashion archive.  
+    - Output must be in plain text.
     """
     response = gemini_client.models.generate_content(
         model="gemini-2.0-flash-001", contents=prompt
     )
     return response.text.strip()
+
 
 
 def run_bigquery(sql: str) -> pd.DataFrame:
@@ -107,7 +115,15 @@ def search_fashion_embeddings(query: str, top_k: int = 5, search_fraction: float
         pd.DataFrame: A DataFrame with matching content, distances, and image URLs.
     """
     sql = f"""
-    SELECT query.query, distance, base.content, base.gcs_url
+    SELECT 
+    base.object_id,
+    base.object_name,
+    base.object_begin_date,
+    base.object_end_date,
+    base.content, 
+    base.gcs_url, 
+    query.query, 
+    distance
     FROM VECTOR_SEARCH(
         TABLE `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_EMBEDDINGS_TABLE_ID}`,
         'text_embedding',
@@ -115,7 +131,7 @@ def search_fashion_embeddings(query: str, top_k: int = 5, search_fraction: float
             SELECT text_embedding, content AS query
             FROM ML.GENERATE_TEXT_EMBEDDING(
                 MODEL `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_EMBEDDINGS_MODEL_ID}`,
-                (SELECT '{query}' AS content)
+                (SELECT "{query}" AS content)
             )
         ),
         top_k => {top_k},
@@ -173,28 +189,28 @@ async def retrieve_fashion_images(user_query: str, top_k: int = 5, search_fracti
     Returns:
         Optional[List[str]]: A list of GCS URLs to matching images, or None if no matches found.
     """
-    refined_query = enhance_fashion_prompt(user_query)
-    logger.info(f"[✨] Enhanced Query: {refined_query}")
+    # refined_query = enhance_fashion_prompt(user_query)
+    # logger.info(f"[✨] Enhanced Query: {refined_query}")
 
-    results = search_fashion_embeddings(refined_query, top_k=top_k, search_fraction=search_fraction)
+    results = search_fashion_embeddings(user_query , top_k=top_k, search_fraction=search_fraction)
     if results.empty:
         logger.warning("[⚠️] No matches found.")
         return None
 
     logger.info(f"[✅] Retrieved {len(results)} matching results.")
-    # results.to_csv("rag_results.csv", index=False)
 
     image_urls = results['gcs_url'].dropna().tolist()
     moodboard_image = create_moodboard(image_urls)
     if tool_context:
         # Save moodboard to GCS if tool context is provided
-        artifact_part = types.Part(
-            inline_data=types.Blob(
-                mime_type="image/png",
-                data=pil_image_to_png_bytes(moodboard_image)
-            )
+        moodboard_artifact_part = types.Part.from_bytes(mime_type="image/png",data=pil_image_to_png_bytes(moodboard_image))
+        await tool_context.save_artifact("moodboard.png", moodboard_artifact_part)
+        met_rag_results = types.Part.from_bytes(
+            mime_type="text/csv",
+            data=results.to_csv(index=False).encode('utf-8')
         )
-        await tool_context.save_artifact("moodboard.png", artifact_part)
+        await tool_context.save_artifact("met_rag_results.csv", met_rag_results)
+
 
     # Save moodboard locally if no tool context is provided
     output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
@@ -232,19 +248,22 @@ def create_moodboard(
     image_urls: List[str],
     thumb_size: tuple = (300, 300),
     padding: int = 10,
+    margin: int = 20,
     columns: int = 3,
     bg_color: str = "white"
 ) -> Image.Image:
     """
     Creates a moodboard from GCS image URLs using Pillow without cropping the images.
     Resizes each image to fit within the thumbnail box while maintaining aspect ratio.
+    Images are arranged in a grid, centered in their cells, with consistent padding and outer margin.
 
     Args:
         image_urls (List[str]): List of GCS image URLs (gs://...).
-        thumb_size (tuple): Maximum width and height of each thumbnail. Defaults to (300, 300).
-        padding (int): Space between images. Defaults to 10 pixels.
-        columns (int): Number of columns in the grid. Defaults to 3.
-        bg_color (str): Background color for empty space. Defaults to white.
+        thumb_size (tuple): Maximum width and height of each thumbnail.
+        padding (int): Space between images.
+        margin (int): Outer space around the moodboard.
+        columns (int): Number of columns in the grid.
+        bg_color (str): Background color.
 
     Returns:
         PIL.Image.Image: The moodboard image assembled in memory.
@@ -253,10 +272,11 @@ def create_moodboard(
         raise ValueError("No images provided for moodboard.")
 
     thumbs = []
-    for url in image_urls:
+    for i, url in enumerate(image_urls):
         img = load_gcs_image(url)
         if img:
-            img.thumbnail(thumb_size, Image.LANCZOS)  # Maintain aspect ratio
+            #img.save(f"moodboard_{i}.png")
+            img.thumbnail(thumb_size, Image.LANCZOS)
             thumb = Image.new("RGB", thumb_size, color=bg_color)
             offset_x = (thumb_size[0] - img.width) // 2
             offset_y = (thumb_size[1] - img.height) // 2
@@ -269,23 +289,46 @@ def create_moodboard(
         raise ValueError("No valid images could be loaded.")
 
     rows = (len(thumbs) + columns - 1) // columns
-    board_width = columns * thumb_size[0] + (columns - 1) * padding
-    board_height = rows * thumb_size[1] + (rows - 1) * padding
-
+    board_width = columns * thumb_size[0] + (columns - 1) * padding + 2 * margin
+    board_height = rows * thumb_size[1] + (rows - 1) * padding + 2 * margin
     moodboard = Image.new("RGB", (board_width, board_height), color=bg_color)
 
-    for i, thumb in enumerate(thumbs):
-        row, col = divmod(i, columns)
-        x = col * (thumb_size[0] + padding)
-        y = row * (thumb_size[1] + padding)
+    for idx, thumb in enumerate(thumbs):
+        row, col = divmod(idx, columns)
+        x = margin + col * (thumb_size[0] + padding)
+        y = margin + row * (thumb_size[1] + padding)
         moodboard.paste(thumb, (x, y))
 
-    logger.info(f"[🖼️] Moodboard created with {len(thumbs)} images (no cropping)")
+    logger.info(f"[🖼️] Moodboard created with {len(thumbs)} images (symmetrically aligned with margin)")
     return moodboard
 
-def run_retrieve_fashion_images_sync(*args, **kwargs):
-    return asyncio.run(retrieve_fashion_images(*args, **kwargs))
 
+def run_retrieve_fashion_images_sync(
+    user_query: str,
+    top_k: int = 5,
+    search_fraction: float = 0.01,
+    tool_context: Optional[ToolContext] = None
+) -> Optional[List[str]]:
+    """
+    Synchronous wrapper for the fashion image retrieval function.
+
+    Args:
+        user_query (str): User's fashion-related query.
+        top_k (int): Number of top results to return.
+        search_fraction (float): Fraction of the vector index to search.
+        tool_context (Optional[ToolContext]): Context for tool execution, if needed.
+
+    Returns:
+        Optional[List[str]]: List of GCS URLs to retrieved images, or None if no matches found.
+    """
+    return asyncio.run(
+        retrieve_fashion_images(
+            user_query=user_query,
+            top_k=top_k,
+            search_fraction=search_fraction,
+            tool_context=tool_context
+        )
+    )
 
 # --- Entry Point ---
 if __name__ == '__main__':

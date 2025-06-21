@@ -33,8 +33,13 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 
-def save_generated_images(images: List[types.GeneratedImage]) -> None:
+async def save_generated_images(images: List[types.GeneratedImage], tool_context: Optional[ToolContext] = None) -> None:
     """Save a list of generated images to the specified output directory."""
+    if tool_context:
+        image_bytes = images[0].image.image_bytes
+        artifact_part = types.Part.from_bytes(mime_type="image/png", data=image_bytes)
+        await tool_context.save_artifact("generated_image.png", artifact_part)
+
     output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
     output_folder.mkdir(parents=True, exist_ok=True)
     for i, generated_image in enumerate(images):
@@ -61,32 +66,22 @@ async def generate_image(enhanced_prompt: str, tool_context: Optional[ToolContex
     try:
         if not enhanced_prompt.strip():
             raise ValueError("Prompt must not be empty.")
-        try:
-            response = client.models.generate_images(
-                model="imagen-3.0-generate-002",
-                prompt=enhanced_prompt,
-                config=types.GenerateImagesConfig(number_of_images=1),
-            )
+        response = client.models.generate_images(
+            model="imagen-3.0-generate-002",
+            prompt=enhanced_prompt,
+            config=types.GenerateImagesConfig(number_of_images=1),
+        )
 
-            if not response.generated_images:
-                raise RuntimeError("No images were generated. Check the prompt and model configuration.")
+        if not response.generated_images:
+            raise RuntimeError("No images were generated. Check the prompt and model configuration.")
 
-            logger.info(f"Generated {len(response.generated_images)} image(s).")
+        logger.info(f"Generated {len(response.generated_images)} image(s).")
 
-            if tool_context:
-                image_bytes = response.generated_images[0].image.image_bytes
-                artifact_part = types.Part(
-                    inline_data=types.Blob(mime_type="image/png", data=image_bytes)
-                )
-                await tool_context.save_artifact("generated_image.png", artifact_part)
-            save_generated_images(response.generated_images)
-            return {
-                "status": "success",
-                "message": "Image generated and saved successfully."
-            }
-        except Exception as e:
-            logger.exception("Image generation failed.")
-            raise
+        await save_generated_images(response.generated_images, tool_context)
+        return {
+            "status": "success",
+            "message": "Image generated and saved successfully."
+        }
     except Exception as e:
         logger.error(f"Error generating image: {e}")
         return {

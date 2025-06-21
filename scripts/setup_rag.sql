@@ -19,34 +19,43 @@ FROM
   ML.GENERATE_TEXT(
     MODEL `met_data.gemini_model`,
     (
-      SELECT
+       SELECT
+        objects.object_id,
+        objects.object_name,
+        objects.object_begin_date,
+        objects.object_end_date,
         FORMAT(
-          '''Generate a short and vivid fashion description of the image focusing on:
-          - Visual motifs
-          - Color palette
-          - Garment structure
-          - Dress silhouette
-
+          '''Describe the dress in the image in detail, make sure to incorporate the following metadata:
           Additionally, incorporate this metadata:
-          - Department: %s
           - Culture: %s
           - Period: %s
           - Artist: %s
+          - Medium: %s
+          - Date: %s - %s
 
-          Do not include any introductions like "Here is the description" or "This image shows". Just return   the raw descriptive text.
+Structure your response using the following format and section headings:
+  Overall Impression:
+  Fabric and Print
+  Color pallette
+  Bodice
+  Sleeves
+  Skirt
 
-          Return the result in Plain Text format.
+Do not include introductory phrases like “Here is the description” or “This image shows.”
+Do not add bullet points or formatting beyond the category headers.
+Output should be in plain text, written in complete sentences with a fashion-specific, fluent tone.
+
           Image URL: %s''',
-          IFNULL(objects.department, '(not specified)'),
           IFNULL(objects.culture, '(not specified)'),
           IFNULL(objects.period, '(not specified)'),
           IFNULL(objects.artist_display_name, '(not specified)'),
+          IFNULL(objects.medium, '(not specified)'),
+          IFNULL(CAST(objects.object_begin_date AS STRING), '(not specified)'),
+          IFNULL(CAST(objects.object_end_date AS STRING), '(not specified)'),
           images.gcs_url
         ) AS prompt,
         images.gcs_url,
         images.original_image_url,
-        objects.title,
-        objects.department
       FROM (
         SELECT
           *,
@@ -74,7 +83,7 @@ FROM
       -- LIMIT 5
     ),
     STRUCT(
-      0.2 AS temperature,
+      1.0 AS temperature,
       500 AS max_output_tokens
     )
   );
@@ -82,12 +91,9 @@ FROM
 
 # create ai_ouputs formatted table
 
-DROP TABLE IF EXISTS `met_data.fashion_ai_outputs_formatted`;
 CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs_formatted` AS
 SELECT
-  title,
-  gcs_url,
-  original_image_url,
+  * EXCEPT (generated_text),
   JSON_VALUE(generated_text, '$.parts[0].text') AS generated_text
 FROM
   `met_data.fashion_ai_outputs`;

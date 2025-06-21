@@ -1,10 +1,10 @@
-from google.adk.agents import Agent, SequentialAgent
+from google.adk.agents import Agent
 from google.adk.tools import agent_tool, load_artifacts
 from google.genai import types
 
-from ai_fashion_house.creative_agent.imagen import generate_image
-from ai_fashion_house.creative_agent.veo import generate_video
-from ai_fashion_house.style_agent.agent import root_agent as style_agent
+from ai_fashion_house.agents.creative_agent.imagen import generate_image
+from ai_fashion_house.agents.creative_agent.veo import generate_video
+from ai_fashion_house.agents.style_agent.agent import root_agent as style_agent
 
 
 def get_instructions() -> str:

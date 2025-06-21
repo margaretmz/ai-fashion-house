@@ -30,17 +30,18 @@ client = genai.Client(api_key=api_key)
 
 
 CAPTION_PROMPT = (
-    "Write a vivid and stylish caption for this fashion image. "
-    "Be descriptive and imaginative—highlight the clothing, colors, textures, and overall style. "
-    "Focus on the dress and the model's pose if visible. "
-    "If the model is not shown and only the dress is visible, assume it is worn by a tall, elegant runway model "
-    "with confident posture and fluid motion, walking mid-stride under soft, ambient lighting. "
-    "The caption should feel like it belongs in a high-end fashion video. "
-    "Be meticulous about every visual detail in the image, Including the model's pose, expression, and the overall mood of the scene. "
+    "Craft a vivid, high-fashion caption for this image. "
+    "Be imaginative and meticulously descriptive—highlight the garment’s design, including every visible detail of the dress: "
+    "its color, texture, fabric, silhouette, stitching, embellishments, and movement. "
+    "If the model is visible, describe their appearance, pose, expression, and how they interact with the garment. "
+    "If the model is not shown, assume the dress is worn by a tall, elegant runway model "
+    "with confident posture and fluid motion, captured mid-stride under soft, ambient lighting. "
+    "The caption should evoke the tone of a luxury fashion film or editorial spread. "
+    "Focus on conveying the atmosphere of the scene while giving special attention to the dress’s craftsmanship, "
+    "visual impact, and how it flows or reacts to the model’s movement."
 )
 
-
-def save_generated_videos(operation_response: types.GenerateVideosResponse) -> None:
+async def save_generated_videos(operation_response: types.GenerateVideosResponse, tool_context: Optional[ToolContext] = None) -> None:
     """
     Save the generated videos from the operation response to the specified output folder.
     :param operation_response:
@@ -49,10 +50,23 @@ def save_generated_videos(operation_response: types.GenerateVideosResponse) -> N
     output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
     output_folder.mkdir(parents=True, exist_ok=True)
     for n, generated_video in enumerate(operation_response.generated_videos):
-        client.files.download(file=generated_video.video)
-        filepath = output_folder / f"generated_video_{n + 1}.mp4"
-        generated_video.video.save(str(filepath))  # Save the video to the output folder
-        logger.info(f"Video saved to {filepath}")
+        try:
+            client.files.download(file=generated_video.video)
+            filepath = output_folder / f"generated_video_{n + 1}.mp4"
+            generated_video.video.save(str(filepath))  # Save the video to the output folder
+            logger.info(f"Video saved to {filepath}")
+            if tool_context:
+                # Save the video artifact using the tool context
+                with open(filepath, "rb") as video_file:
+                    video_data = video_file.read()
+                video_artifact = types.Part.from_bytes(
+                    mime_type="video/mp4",
+                    data=video_data
+                )
+                await tool_context.save_artifact(filepath.name, video_artifact)
+                logger.info(f"Video artifact saved to tool context as generated_video_{n + 1}.mp4")
+        except Exception as e:
+            logger.error(f"Failed to save video {n + 1}: {e}")
 
 async def generate_video(image_path: str, tool_context: Optional[ToolContext] = None) -> dict[str, Any]:
     """
@@ -81,12 +95,16 @@ async def generate_video(image_path: str, tool_context: Optional[ToolContext] = 
             )
 
         prompt = await generate_reference_image_prompt(image_artifact)
+        # prompt = tool_context.state.get("enhanced_prompt", None)
+        # if not prompt:
+        #     raise ValueError("Enhanced prompt not found in tool context state. Please provide a valid prompt.")
 
         operation = client.models.generate_videos(
             model="veo-2.0-generate-001",
             prompt=prompt,
             image=image_artifact.file_data,
             config=types.GenerateVideosConfig(
+                number_of_videos=2,  # Number of videos to generate
                 person_generation="allow_adult",  # "dont_allow" or "allow_adult"
                 aspect_ratio="9:16",  # "16:9" or "9:16"
                 duration_seconds=8,  # Duration of the video in seconds
@@ -96,7 +114,7 @@ async def generate_video(image_path: str, tool_context: Optional[ToolContext] = 
             time.sleep(20)
             operation = client.operations.get(operation)
 
-        save_generated_videos(operation.response)
+        await save_generated_videos(operation.response, tool_context)
         return {
             "status": "success",
             "message": "Video generated and saved successfully."
