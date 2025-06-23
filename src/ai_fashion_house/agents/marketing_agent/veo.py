@@ -147,7 +147,7 @@ async def generate_video(
             prompt=prompt,
             image=image_artifact.file_data,
             config=types.GenerateVideosConfig(
-                number_of_videos=2,
+                number_of_videos=1,
                 person_generation="allow_adult",
                 aspect_ratio="16:9",
                 duration_seconds=8,

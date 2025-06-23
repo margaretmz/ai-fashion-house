@@ -71,7 +71,7 @@ def search_fashion_embeddings(query: str, top_k: int = 6, search_fraction: float
 
     Args:
         query (str): Text to embed and search against the vector database.
-        top_k (int, optional): Number of top results to return. Defaults to 5.
+        top_k (int, optional): Number of top results to return. Defaults to 6.
         search_fraction (float, optional): Fraction of the vector index to search. Defaults to 0.01.
 
     Returns:
@@ -136,7 +136,7 @@ def pil_image_to_png_bytes(image: Image.Image) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-async def retrieve_met_images(user_query: str, top_k: int = 5, search_fraction: float = 0.01, tool_context: ToolContext = None) -> dict:
+async def retrieve_met_images(user_query: str, top_k: int = 6, search_fraction: float = 0.01, tool_context: ToolContext = None) -> dict:
     """
     Orchestrates the full RAG pipeline: refines the user query, retrieves similar embeddings,
     and returns a list of matching GCS image URLs.
@@ -145,7 +145,7 @@ async def retrieve_met_images(user_query: str, top_k: int = 5, search_fraction: 
 
     Args:
         user_query (str): Initial query string describing the desired fashion style.
-        top_k (int, optional): Number of top image results to return. Defaults to 5.
+        top_k (int, optional): Number of top image results to return. Defaults to 6.
         search_fraction (float, optional): Search scope for approximate vector match. Defaults to 0.01.
         tool_context (ToolContext, optional): Context for tool execution, if needed.
 

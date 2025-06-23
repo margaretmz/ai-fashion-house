@@ -69,8 +69,7 @@ async def before_model_callback(
 def get_fashion_model_details() -> str:
     """Returns the physical description of the fashion model."""
     return (
-        "Tall and slender with an afro hairstyle, high cheekbones, smooth skin, and long, graceful limbs. "
-        "The model has a symmetrical face, defined jawline, and an upright, elegant posture."
+        "A beautiful fashion model."
     )
 
 research_agent = ParallelAgent(

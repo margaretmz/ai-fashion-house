@@ -129,7 +129,7 @@ export default function HomePage() {
         >
           <Stack spacing={4} alignItems="center">
             <Typography variant="h4" align="center">
-              Welcome to the Fashion Home App
+              Welcome to AI Fashion House
             </Typography>
             <Typography variant="subtitle1" align="center" color="text.secondary">
               Let’s bring your dream dress to life. What would you like to design today?
