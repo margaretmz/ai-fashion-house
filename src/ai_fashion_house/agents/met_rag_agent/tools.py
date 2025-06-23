@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import io
 import logging
 import os
@@ -10,12 +11,9 @@ import google.genai.types as types
 import pandas as pd
 from PIL import Image
 from dotenv import load_dotenv, find_dotenv
-from google import genai
 from google.adk.tools import ToolContext
 from google.cloud import bigquery, storage
 from rich.logging import RichHandler
-
-import base64
 
 # --- Setup Rich Logging ---
 logging.basicConfig(
@@ -28,55 +26,20 @@ logger = logging.getLogger("FashionRAG")
 
 # --- Load Environment Variables ---
 load_dotenv(find_dotenv())
-GOOGLE_PROJECT_ID = os.getenv("GOOGLE_PROJECT_ID")
+
+
+GOOGLE_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
+GOOGLE_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+
 BIGQUERY_DATASET_ID = os.getenv("BIGQUERY_DATASET_ID")
 BIGQUERY_EMBEDDINGS_TABLE_ID = os.getenv("BIGQUERY_EMBEDDINGS_TABLE_ID")
 BIGQUERY_EMBEDDINGS_MODEL_ID = os.getenv("BIGQUERY_EMBEDDINGS_MODEL_ID")
+
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- Initialize Clients ---
-bq_client = bigquery.Client(project=GOOGLE_PROJECT_ID)
+bq_client = bigquery.Client(project=GOOGLE_PROJECT_ID, location="US")
 gcs_client = storage.Client(project=GOOGLE_PROJECT_ID)
-gemini_client = genai.Client(api_key=GOOGLE_API_KEY)
-
-
-def enhance_fashion_prompt(user_input: str) -> str:
-    """
-    Transforms casual or vague fashion-related user input into a refined, vivid description
-    formatted for use in a structured retrieval or RAG pipeline.
-
-    Args:
-        user_input (str): Raw input string from the user describing a fashion item or concept.
-
-    Returns:
-        str: A vivid, structured fashion description organized by section headers.
-    """
-    prompt = f"""
-    You are a fashion assistant that transforms loosely defined or casual user descriptions
-    into richly detailed, structured fashion descriptions suitable for archival retrieval.
-    
-    The user's input:
-    "{user_input}"
-    
-    In your response, incorporate vivid, fashion-specific language and organize your output using the following format:
-    
-    Overall Impression:
-    Fabric and Print:
-    Color Palette:
-    Bodice:
-    Sleeves:
-    Skirt:
-    
-    - Do NOT include any introductions like “Here is the description” or “This image shows.”  
-    - Do NOT use bullet points or extra formatting beyond the specified section headers.  
-    - Write in complete, fluent sentences appropriate for a fashion archive.  
-    - Output must be in plain text.
-    """
-    response = gemini_client.models.generate_content(
-        model="gemini-2.0-flash-001", contents=prompt
-    )
-    return response.text.strip()
-
 
 
 def run_bigquery(sql: str) -> pd.DataFrame:
@@ -102,7 +65,7 @@ def run_bigquery(sql: str) -> pd.DataFrame:
         raise
 
 
-def search_fashion_embeddings(query: str, top_k: int = 5, search_fraction: float = 0.01) -> pd.DataFrame:
+def search_fashion_embeddings(query: str, top_k: int = 6, search_fraction: float = 0.01) -> pd.DataFrame:
     """
     Performs a vector similarity search using a fashion-related query on a BigQuery embedding table.
 
@@ -173,7 +136,7 @@ def pil_image_to_png_bytes(image: Image.Image) -> bytes:
     buffer.seek(0)
     return buffer.read()
 
-async def retrieve_fashion_images(user_query: str, top_k: int = 5, search_fraction: float = 0.01, tool_context: ToolContext = None) -> Optional[List[str]]:
+async def retrieve_met_images(user_query: str, top_k: int = 5, search_fraction: float = 0.01, tool_context: ToolContext = None) -> dict:
     """
     Orchestrates the full RAG pipeline: refines the user query, retrieves similar embeddings,
     and returns a list of matching GCS image URLs.
@@ -191,35 +154,44 @@ async def retrieve_fashion_images(user_query: str, top_k: int = 5, search_fracti
     """
     # refined_query = enhance_fashion_prompt(user_query)
     # logger.info(f"[✨] Enhanced Query: {refined_query}")
+    try:
+        results = search_fashion_embeddings(user_query , top_k=top_k, search_fraction=search_fraction)
+        if results.empty:
+            logger.warning("[⚠️] No matches found.")
+            return None
 
-    results = search_fashion_embeddings(user_query , top_k=top_k, search_fraction=search_fraction)
-    if results.empty:
-        logger.warning("[⚠️] No matches found.")
-        return None
+        logger.info(f"[✅] Retrieved {len(results)} matching results.")
 
-    logger.info(f"[✅] Retrieved {len(results)} matching results.")
-
-    image_urls = results['gcs_url'].dropna().tolist()
-    moodboard_image = create_moodboard(image_urls)
-    if tool_context:
-        # Save moodboard to GCS if tool context is provided
-        moodboard_artifact_part = types.Part.from_bytes(mime_type="image/png",data=pil_image_to_png_bytes(moodboard_image))
-        await tool_context.save_artifact("moodboard.png", moodboard_artifact_part)
-        met_rag_results = types.Part.from_bytes(
-            mime_type="text/csv",
-            data=results.to_csv(index=False).encode('utf-8')
-        )
-        await tool_context.save_artifact("met_rag_results.csv", met_rag_results)
+        image_urls = results['gcs_url'].dropna().tolist()
+        moodboard_image = create_moodboard(image_urls)
+        if tool_context:
+            # Save moodboard to GCS if tool context is provided
+            moodboard_artifact_part = types.Part.from_bytes(mime_type="image/png",data=pil_image_to_png_bytes(moodboard_image))
+            await tool_context.save_artifact("moodboard.png", moodboard_artifact_part)
+            met_rag_results = types.Part.from_bytes(
+                mime_type="text/csv",
+                data=results.to_csv(index=False).encode('utf-8')
+            )
+            await tool_context.save_artifact("met_rag_results.csv", met_rag_results)
 
 
-    # Save moodboard locally if no tool context is provided
-    output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
-    output_folder.mkdir(parents=True, exist_ok=True)
-    output_file = output_folder / "moodboard.png"
-    moodboard_image.save(output_file)
+        # Save moodboard locally if no tool context is provided
+        output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
+        output_folder.mkdir(parents=True, exist_ok=True)
+        output_file = output_folder / "moodboard.png"
+        moodboard_image.save(output_file)
 
-    logger.info(f"[🖼️] Moodboard saved @ {output_file}")
-    return image_urls
+        logger.info(f"[🖼️] Moodboard saved @ {output_file}")
+        return {
+            "status": "success",
+            "result": image_urls,
+        }
+    except Exception as e:
+        logger.error(f"[❌] Error during retrieval: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+        }
 
 
 
@@ -303,7 +275,7 @@ def create_moodboard(
     return moodboard
 
 
-def run_retrieve_fashion_images_sync(
+def run_retrieve_met_images_sync(
     user_query: str,
     top_k: int = 5,
     search_fraction: float = 0.01,
@@ -322,7 +294,7 @@ def run_retrieve_fashion_images_sync(
         Optional[List[str]]: List of GCS URLs to retrieved images, or None if no matches found.
     """
     return asyncio.run(
-        retrieve_fashion_images(
+        retrieve_met_images(
             user_query=user_query,
             top_k=top_k,
             search_fraction=search_fraction,
@@ -338,7 +310,7 @@ if __name__ == '__main__':
         logger.info(f"• {table.project}.{table.dataset_id}.{table.table_id}")
 
     query = "A pink Victorian dress with lace and floral patterns, suitable for a royal ball in the 1800s."
-    image_results = run_retrieve_fashion_images_sync(
+    image_results = run_retrieve_met_images_sync(
         user_query=query,
         top_k=5,
         search_fraction=0.01

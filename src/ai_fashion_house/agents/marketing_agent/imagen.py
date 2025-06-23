@@ -22,15 +22,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger("StyleAgent")
 
-# --- Load environment variables ---
-if not load_dotenv(find_dotenv()):
-    logger.warning("[env] Could not load .env file.")
-api_key = os.getenv("GOOGLE_API_KEY")
-if not api_key:
-    raise EnvironmentError("GOOGLE_API_KEY is not set in environment variables.")
+load_dotenv(find_dotenv())
 
-# --- Initialize GenAI client ---
-client = genai.Client(api_key=api_key)
+
+def resolve_client_credentials() -> genai.Client:
+    """
+    Resolve and return a genai.Client instance based on environment configuration.
+
+    If GOOGLE_GENAI_USE_VERTEXAI is set to "1" (case-insensitive), the client will be initialized
+    using Vertex AI with GOOGLE_PROJECT_ID and GOOGLE_LOCATION.
+    Otherwise, it uses the GOOGLE_API_KEY for standard API access.
+    """
+    use_vertexai = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").strip().lower()
+
+    if use_vertexai == "1":
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
+        location = os.getenv("GOOGLE_CLOUD_LOCATION")
+
+        if not project_id or not location:
+            raise EnvironmentError("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set for Vertex AI usage.")
+
+        return genai.Client(project=project_id, location=location)
+
+    # Default to using API key
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise EnvironmentError("GOOGLE_API_KEY must be set when not using Vertex AI.")
+
+    return genai.Client(api_key=api_key)
+
+
+client = resolve_client_credentials()
 
 
 async def save_generated_images(images: List[types.GeneratedImage], tool_context: Optional[ToolContext] = None) -> None:
@@ -67,7 +89,7 @@ async def generate_image(enhanced_prompt: str, tool_context: Optional[ToolContex
         if not enhanced_prompt.strip():
             raise ValueError("Prompt must not be empty.")
         response = client.models.generate_images(
-            model="imagen-3.0-generate-002",
+            model=os.getenv("IMAGEN_MODEL_ID","imagen-4.0-generate-preview-06-06"),
             prompt=enhanced_prompt,
             config=types.GenerateImagesConfig(number_of_images=1),
         )

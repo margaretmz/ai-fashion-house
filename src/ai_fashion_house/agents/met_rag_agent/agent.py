@@ -1,6 +1,6 @@
 from google.adk.agents import Agent
 
-from ai_fashion_house.agents.met_rag_agent.tools import retrieve_fashion_images
+from ai_fashion_house.agents.met_rag_agent.tools import retrieve_met_images
 
 def get_instructions() -> str:
     """
@@ -28,5 +28,5 @@ root_agent = Agent(
     description="Search The Met's public collection for historical fashion images and artifacts.",
     instruction=get_instructions(),
     output_key="met_rag_results",
-    tools=[retrieve_fashion_images]
+    tools=[retrieve_met_images]
 )
