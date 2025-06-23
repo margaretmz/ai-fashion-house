@@ -11,7 +11,7 @@ from google.adk.agents import BaseAgent
 from google.adk.runners import InMemoryRunner
 from google.adk.events.event import Event as ADKEvent
 from google.genai import types
-from ai_fashion_house.agents.creative_agent.agent import root_agent
+from ai_fashion_house.agents.marketing_agent.agent import root_agent
 
 # Load environment variables
 load_dotenv(find_dotenv())

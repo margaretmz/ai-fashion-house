@@ -10,7 +10,7 @@ from google.adk.artifacts import InMemoryArtifactService
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from ai_fashion_house.agents.creative_agent.agent import root_agent
+from ai_fashion_house.agents.fashion_design_agent.agent import root_agent
 
 load_dotenv(find_dotenv())
 
