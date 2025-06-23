@@ -2,7 +2,7 @@
 
 A project for ADK Hackathon with Google Cloud: a multi-agent system that helps you find design inspiration, create fashion images and runway videos.
 
-# What is AI-Fashion Home?
+# What is AI Fashion House
 
 This project is an AI-driven fashion design assistant that transforms user prompts into rich visual outputs using a modular, multi-agent system. Built specifically for fashion concept generation, it automates every step — from idea interpretation to high-fidelity visual creation — by orchestrating a team of intelligent agents.
 
