@@ -110,6 +110,9 @@ IMAGEN_MODEL_ID=imagen-4.0-generate-preview-06-06
 
 ### Set Up MET RAG(Retrieval-Augmented Generation)
 
+To simplify the installation process, you can use the setup-rag command to automatically configure the MET RAG (Retrieval-Augmented Generation) environment on GCP BigQuery. This command sets up the required dataset, connection, and vector index for the MET RAG agent.
+In case the automated setup fails or you prefer manual deployment, we’ve also included the necessary BigQuery SQL scripts in the scripts/ folder.
+
 ```bash
 ai-fashion-house setup-rag
 ```
