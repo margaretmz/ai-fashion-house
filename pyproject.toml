@@ -1,10 +1,11 @@
 [project]
 name = "ai-fashion-house"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.1.1"
+description = "AI Fashion House: A platform for AI-driven fashion design and analysis"
 readme = "README.md"
 authors = [
-    { name = "haruiz", email = "henryruiz22@gmail.com" }
+    { name = "haruiz", email = "henryruiz22@gmail.com" },
+    { name = "margaretmz", email = "margaretmz@gmail.com"}
 ]
 requires-python = ">=3.11.11"
 dependencies = [
@@ -30,3 +31,36 @@ ai-fashion-house = "ai_fashion_house.cli:app"
 
 [project.scripts]
 ai-fashion-house = "ai_fashion_house.cli:app"
+
+
+
+[tool.hatch.build]
+exclude = [
+    "tests/",
+    "docs/",
+    "examples/",
+    "assets/",
+    "keys/",
+    ".git/",
+    ".github/",
+    "scripts/",
+    "configs/",
+    "README.md",
+    ".env",
+    "config.json",
+    "*/**/.sh",
+    "Makefile",
+    "cloudbuild.yaml",
+    "*/**/Dockerfile",
+    "Dockerfile",
+    "requirements.txt",
+    "docker/",
+    "*.sh",
+    "*.yml",
+    "analysis/",
+    "data/",
+    "images/",
+    "ui/",
+    "web.ps1",
+]
+
