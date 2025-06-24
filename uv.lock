@@ -10,7 +10,7 @@ resolution-markers = [
 
 [[package]]
 name = "ai-fashion-house"
-version = "0.1.0"
+version = "0.1.4"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -18,6 +18,7 @@ dependencies = [
     { name = "deprecated" },
     { name = "google-adk" },
     { name = "google-cloud-bigquery" },
+    { name = "google-cloud-bigquery-connection" },
     { name = "httpx" },
     { name = "matplotlib" },
     { name = "pandas" },
@@ -33,6 +34,7 @@ requires-dist = [
     { name = "deprecated", specifier = ">=1.2.18" },
     { name = "google-adk", specifier = ">=1.3.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.34.0" },
+    { name = "google-cloud-bigquery-connection", specifier = ">=1.18.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "matplotlib", specifier = ">=3.10.3" },
     { name = "pandas", specifier = ">=2.3.0" },
@@ -590,6 +592,22 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/24/f9/e9da2d56d7028f05c0e2f5edf6ce43c773220c3172666c3dd925791d763d/google_cloud_bigquery-3.34.0.tar.gz", hash = "sha256:5ee1a78ba5c2ccb9f9a8b2bf3ed76b378ea68f49b6cac0544dc55cc97ff7c1ce", size = 489091 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/7e/7115c4f67ca0bc678f25bff1eab56cc37d06eb9a3978940b2ebd0705aa0a/google_cloud_bigquery-3.34.0-py3-none-any.whl", hash = "sha256:de20ded0680f8136d92ff5256270b5920dfe4fae479f5d0f73e90e5df30b1cf7", size = 253555 },
+]
+
+[[package]]
+name = "google-cloud-bigquery-connection"
+version = "1.18.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", extra = ["grpc"] },
+    { name = "google-auth" },
+    { name = "grpc-google-iam-v1" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c9/eb/c960af3f530db152abbe96f46c2f1cd46f257f50d7cde9df5ad7e29d597c/google_cloud_bigquery_connection-1.18.3.tar.gz", hash = "sha256:06a65f596471b1622a37c32a6fefb76a3aafc55f5130caf66fd465d438b9f238", size = 76462 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2a/d5/0a660855f889891528beea3426bad02bb08de7a58c3ef9603ce916940c14/google_cloud_bigquery_connection-1.18.3-py3-none-any.whl", hash = "sha256:a26e96114a1030504bf577401121265709cd2ababa4e53433c8e6c2762c4a8bf", size = 68022 },
 ]
 
 [[package]]

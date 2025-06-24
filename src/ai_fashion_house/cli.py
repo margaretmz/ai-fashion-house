@@ -5,6 +5,7 @@ from typing import Optional
 import typer
 from dotenv import load_dotenv, find_dotenv
 from typing_extensions import Annotated
+from ai_fashion_house.create_rag import main as create_rag
 
 # Load environment variables from a .env file
 load_dotenv(find_dotenv())
@@ -55,15 +56,13 @@ def start(
     dispatch_fastapi_app("ai_fashion_house.web.app:app", host, port, workers, reload)
 
 
-@app.command(name="deploy")
-def deploy_to_cloud_run():
+@app.command(name="setup-rag")
+def setup_rag():
     """
     Deploy the FastAPI app to Google Cloud Run.
     """
-    logging.info("Deploying to Google Cloud Run...")
-    # Here you would implement the logic to deploy your FastAPI app to Google Cloud Run
-    # This is a placeholder for the actual deployment logic
-    print("Deployment logic not implemented yet.")
+    create_rag()
+
 
 def main():
     app()

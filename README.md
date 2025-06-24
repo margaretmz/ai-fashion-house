@@ -67,40 +67,51 @@ Each step of the workflow is managed by a dedicated agent:
 
 ## Installation
 
-### Setting Up MET BigQuery RAG
-
-See the [met\_rage README](met_rage/README.md) for full setup instructions.
-
-### Create and Activate Python Environment
+### Create and Activate A Virtual Environment with Python 11.0 or Higher
 
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-### Install Dependencies
+### Install Package
 
 ```bash
 pip install ai-fashion-house
 ```
 
-### Configure Environment Variables
+### Configure Environment Variables to run the application
 
 Create a `.env` file in the root directory with the following content:
 
 ```env
 GOOGLE_GENAI_USE_VERTEXAI=1
-GOOGLE_API_KEY=<YOUR_GOOGLE_API_KEY>
-GOOGLE_CLOUD_PROJECT=<YOUR_GOOGLE_CLOUD_PROJECT>
-GOOGLE_CLOUD_LOCATION=<YOUR_GOOGLE_CLOUD_LOCATION>
+GOOGLE_API_KEY=<your_google_api_key>
+GOOGLE_CLOUD_PROJECT=<your_google_cloud_project_id>
+GOOGLE_CLOUD_LOCATION=us-central1
 
-BIGQUERY_DATASET_ID=met_data
+# RAG settings
+BIGQUERY_DATASET_ID=met_data2
+BIGQUERY_CONNECTION_ID=met_data_conn2
+BIGQUERY_REGION=US
+
+# Embeddings and captioning models
 BIGQUERY_EMBEDDINGS_MODEL_ID=embeddings_model
-BIGQUERY_EMBEDDINGS_TABLE_ID=fashion_ai_outputs_embeddings
+BIGQUERY_EMBEDDINGS_MODEL=text-embedding-005
+BIGQUERY_CAPTIONING_MODEL_ID=gemini_model
+BIGQUERY_CAPTIONING_MODEL=gemini-2.0-flash
+BIGQUERY_TABLE_ID=fashion_ai_met
+BIGQUERY_VECTOR_INDEX_ID=met_data_index
 
 VEO2_OUTPUT_GCS_URI=gs://myfiles2025
 VEO2_MODEL_ID=veo-3.0-generate-preview
 IMAGEN_MODEL_ID=imagen-4.0-generate-preview-06-06
+```
+
+### Set Up MET RAG(Retrieval-Augmented Generation)
+
+```bash
+ai-fashion-house setup-rag
 ```
 
 ### Run the Application

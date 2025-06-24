@@ -32,13 +32,15 @@ GOOGLE_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 GOOGLE_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 
 BIGQUERY_DATASET_ID = os.getenv("BIGQUERY_DATASET_ID")
-BIGQUERY_EMBEDDINGS_TABLE_ID = os.getenv("BIGQUERY_EMBEDDINGS_TABLE_ID")
 BIGQUERY_EMBEDDINGS_MODEL_ID = os.getenv("BIGQUERY_EMBEDDINGS_MODEL_ID")
+BIGQUERY_REGION= os.getenv("BIGQUERY_REGION", "US")
+BIGQUERY_VECTOR_INDEX_ID = os.getenv("BIGQUERY_VECTOR_INDEX_ID")
+BIGQUERY_TABLE_ID = os.getenv("BIGQUERY_TABLE_ID")
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # --- Initialize Clients ---
-bq_client = bigquery.Client(project=GOOGLE_PROJECT_ID, location="US")
+bq_client = bigquery.Client(project=GOOGLE_PROJECT_ID, location=BIGQUERY_REGION)
 gcs_client = storage.Client(project=GOOGLE_PROJECT_ID)
 
 
@@ -88,7 +90,7 @@ def search_fashion_embeddings(query: str, top_k: int = 6, search_fraction: float
     query.query, 
     distance
     FROM VECTOR_SEARCH(
-        TABLE `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_EMBEDDINGS_TABLE_ID}`,
+        TABLE `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_TABLE_ID}_embeddings`,
         'text_embedding',
         (
             SELECT text_embedding, content AS query
@@ -307,7 +309,7 @@ if __name__ == '__main__':
     logger.info("[📂] Listing tables in MET dataset...")
     tables = bq_client.list_tables("bigquery-public-data.the_met")
     for table in tables:
-        logger.info(f"• {table.project}.{table.dataset_id}.{table.table_id}")
+        logger.info(f"• {table.project}.{table.bigquery_dataset_id}.{table.table_id}")
 
     query = "A pink Victorian dress with lace and floral patterns, suitable for a royal ball in the 1800s."
     image_results = run_retrieve_met_images_sync(

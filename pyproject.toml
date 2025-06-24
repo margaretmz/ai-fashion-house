@@ -1,7 +1,7 @@
 [project]
 name = "ai-fashion-house"
-version = "0.1.1"
-description = "AI Fashion House: A platform for AI-driven fashion design and analysis"
+version = "0.1.5"
+description = "AI Fashion House, A multi agent adk application for fashion design"
 readme = "README.md"
 authors = [
     { name = "haruiz", email = "henryruiz22@gmail.com" },
@@ -14,6 +14,7 @@ dependencies = [
     "deprecated>=1.2.18",
     "google-adk>=1.3.0",
     "google-cloud-bigquery>=3.34.0",
+    "google-cloud-bigquery-connection>=1.18.3",
     "httpx>=0.28.1",
     "matplotlib>=3.10.3",
     "pandas>=2.3.0",
