@@ -1,12 +1,11 @@
 import os
-import time
 import subprocess
+import time
 
+from dotenv import load_dotenv, find_dotenv
 from google.cloud import bigquery
 from google.cloud import bigquery_connection_v1 as bq_connection
 from google.cloud.exceptions import NotFound
-from google.cloud.aiplatform.constants.prediction import region
-from dotenv import load_dotenv, find_dotenv
 from rich import print
 from rich.progress import Progress
 
@@ -119,7 +118,7 @@ def create_gemini_captions_table():
     Creates a BigQuery table using `ML.GENERATE_TEXT` to produce captions from metadata.
     """
     sql = f"""
-    CREATE OR REPLACE TABLE `{bigquery_dataset_id}.{bigquery_table_id}_outputs` AS
+    CREATE OR REPLACE TABLE `{bigquery_dataset_id}.{bigquery_table_id}` AS
     SELECT
       ml_generate_text_result['candidates'][0]['content'] AS generated_text,
       * EXCEPT (ml_generate_text_result)

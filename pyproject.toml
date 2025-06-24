@@ -1,6 +1,6 @@
 [project]
 name = "ai-fashion-house"
-version = "0.1.5"
+version = "0.1.6"
 description = "AI Fashion House, A multi agent adk application for fashion design"
 readme = "README.md"
 authors = [
