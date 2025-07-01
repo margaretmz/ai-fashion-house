@@ -52,7 +52,7 @@ This project integrates:
 
 ## Multi-Agent Architecture
 
-![Multi-Agent Architecture](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/Fashion-AI-APP.drawio.png)
+![Multi-Agent Architecture](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/agents-architecture.png)
 
 Each step of the workflow is managed by a dedicated agent:
 
