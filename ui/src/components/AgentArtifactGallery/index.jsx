@@ -17,7 +17,7 @@ import {
   TableBody,
   Box
 } from '@mui/material';
-
+import { Stack } from '@mui/material'; // Add this import
 import ImageIcon from '@mui/icons-material/Image';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import TableChartIcon from '@mui/icons-material/TableChart';
@@ -89,56 +89,63 @@ export default function AgentArtifactGallery({ artifacts }) {
 
   return (
     <>
-      <Grid container spacing={2}>
-        {artifacts.map((item, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
-            <Card sx={{ maxWidth: '100%' }}>
-              {item.mime_type?.startsWith('image/') && (
-                <CardMedia
-                  component="img"
-                  height="300"
-                  image={getMediaSource(item)}
-                  alt={item.caption || 'Generated image'}
-                  onClick={() => handleOpen(item)}
-                  sx={{ cursor: 'pointer' }}
-                />
-              )}
-              {item.mime_type?.startsWith('video/') && (
-                <CardMedia
-                  component="video"
-                  controls
-                  height="300"
-                  src={getMediaSource(item)}
-                  onClick={() => handleOpen(item)}
-                  sx={{ cursor: 'pointer' }}
-                />
-              )}
-              {item.mime_type === 'text/csv' && (
-                <CardContent
-                  sx={{ cursor: 'pointer' }}
-                  onClick={() => handleOpen(item)}
-                >
-                  <Typography variant="body1" fontWeight="bold">
-                    {item.filename}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Click to view CSV results
-                  </Typography>
-                </CardContent>
-              )}
+      <Stack spacing={2}>
+      {artifacts.map((item, index) => (
+        <Card key={index} sx={{ width: '100%' }}>
+          {item.mime_type?.startsWith('image/') && (
+            <CardMedia
+              component="img"
+              image={getMediaSource(item)}
+              alt={item.caption || 'Generated image'}
+              onClick={() => handleOpen(item)}
+              sx={{ cursor: 'pointer', width: '100%', objectFit: 'contain' }}
+            />
+          )}
+         {item.mime_type?.startsWith('video/') && (
+          <Box
+            onClick={() => handleOpen(item)}
+            sx={{ cursor: 'pointer', width: '100%' }}
+          >
+            <video
+              src={getMediaSource(item)}
+              controls={false}
+              style={{
+                width: '100%',
+                objectFit: 'contain',
+                pointerEvents: 'none' // Prevent video controls from reacting to clicks here
+              }}
+            />
+          </Box>
+          )}
+          {item.mime_type === 'text/csv' && (
+            <CardContent>
+              <Typography variant="body1" fontWeight="bold">
+                {item.filename}
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => handleOpen(item)}
+                sx={{ mt: 1 }}
+              >
+                View CSV
+              </Button>
+            </CardContent>
+          )}
 
-              <CardContent>
-                <Box display="flex" alignItems="center" gap={1}>
-                  {getIcon(item.mime_type)}
-                  <Typography variant="body2" color="text.secondary">
-                    {item.caption || item.filename || item.mime_type}
-                  </Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
+
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={1}>
+              {getIcon(item.mime_type)}
+              <Typography variant="body2" color="text.secondary">
+                {item.caption || item.filename || item.mime_type}
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      ))}
+    </Stack>
+
 
       <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
         <DialogTitle>{selectedItem?.filename || 'Preview'}</DialogTitle>

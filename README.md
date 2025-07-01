@@ -52,7 +52,7 @@ This project integrates:
 
 ## Multi-Agent Architecture
 
-![Multi-Agent Architecture](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/multi-agent-architecture.png)
+![Multi-Agent Architecture](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/Fashion-AI-APP.drawio.png)
 
 Each step of the workflow is managed by a dedicated agent:
 
@@ -134,5 +134,58 @@ to access the AI Fashion House interface.
 ![Fashion House interface](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/Screenshot1.png)
 
 ![Fashion House interface 2](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/Screenshot2.png)
+
+Great! Here's a final version you can use in your `CONTRIBUTING.md` or `README.md` under the **Contributing** section:
+
+---
+
+### 🤝 Contributing
+
+Contributions are welcome and appreciated! To contribute:
+
+1. **Fork** this repository.
+2. **Create a new branch** for your feature or fix.
+3. **Commit** your changes with clear messages.
+4. **Push** to your forked repository.
+5. **Open a Pull Request (PR)** to the `main` branch with a description of your changes and any relevant context.
+
+---
+
+### 🛠️ Running the Project Locally
+
+#### 1. Start the Backend
+
+Run the backend server from the root directory:
+
+```bash
+ai-fashion-house start --reload
+```
+
+> 💡 Use the `--reload` flag to enable hot-reloading during development.
+
+#### 2. Start the React Frontend
+
+Open a new terminal, navigate to the `ui` directory, and run:
+
+```bash
+cd ui
+npm install
+npm run dev
+```
+Then open your browser and navigate to:
+```
+http://localhost:5173
+```
+
+#### 3. Build for Production
+
+To generate the production build of the frontend:
+
+```bash
+npm run build
+```
+
+> ⚛️ The UI is a [React.js](https://reactjs.org/) app using Vite.
+
 
 
