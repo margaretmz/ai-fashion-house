@@ -135,10 +135,6 @@ to access the AI Fashion House interface.
 
 ![Fashion House interface 2](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/Screenshot2.png)
 
-Great! Here's a final version you can use in your `CONTRIBUTING.md` or `README.md` under the **Contributing** section:
-
----
-
 ### 🤝 Contributing
 
 Contributions are welcome and appreciated! To contribute:
