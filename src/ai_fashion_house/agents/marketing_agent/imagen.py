@@ -1,77 +1,59 @@
 import asyncio
-import os
 import logging
+import os
 import typing
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from dotenv import load_dotenv, find_dotenv
-from PIL import Image
-from google import genai
 from google.adk.tools import ToolContext
+from google.cloud import storage
 from google.genai import types
-from rich.logging import RichHandler
-
-# --- Configure Rich Logging ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(message)s",
-    datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]
+from PIL import Image
+from ai_fashion_house.utils.gcp_utils import (
+    get_authenticated_genai_client,
+    parse_gcs_uri, download_media_file_from_gcs
 )
-logger = logging.getLogger("StyleAgent")
+
+logger = logging.getLogger(__name__)
 
 load_dotenv(find_dotenv())
 
 
-def resolve_client_credentials() -> genai.Client:
+genai_client = get_authenticated_genai_client()
+gcs_client = storage.Client()
+
+
+async def save_generated_image(image: types.Image, output_folder: Path, tool_context: Optional[ToolContext] = None) -> None:
     """
-    Resolve and return a genai.Client instance based on environment configuration.
-
-    If GOOGLE_GENAI_USE_VERTEXAI is set to "1" (case-insensitive), the client will be initialized
-    using Vertex AI with GOOGLE_PROJECT_ID and GOOGLE_LOCATION.
-    Otherwise, it uses the GOOGLE_API_KEY for standard API access.
+    Save generated images to a specified output folder and optionally save as an artifact using the ToolContext.
+    :param image: The generated image object containing the image bytes.
+    :param output_folder: The folder where the images will be saved.
+    :param tool_context:
+    :return:
     """
-    use_vertexai = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").strip().lower()
+    image_gcs_uri = image.gcs_uri
+    if not image_gcs_uri:
+        raise ValueError("Image GCS URI is not provided in the generated image object.")
 
-    if use_vertexai == "1":
-        project_id = os.getenv("GOOGLE_CLOUD_PROJECT")
-        location = os.getenv("GOOGLE_CLOUD_LOCATION")
-
-        if not project_id or not location:
-            raise EnvironmentError("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set for Vertex AI usage.")
-
-        return genai.Client(project=project_id, location=location)
-
-    # Default to using API key
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GOOGLE_API_KEY must be set when not using Vertex AI.")
-
-    return genai.Client(api_key=api_key)
-
-
-client = resolve_client_credentials()
-
-
-async def save_generated_images(images: List[types.GeneratedImage], tool_context: Optional[ToolContext] = None) -> None:
-    """Save a list of generated images to the specified output directory."""
+    # Download the image bytes from GCS
+    bucket_name, blob_path = parse_gcs_uri(image_gcs_uri)
+    image_bytes, image_mime_type = download_media_file_from_gcs(
+        bucket_name=bucket_name,
+        blob_path=blob_path
+    )
+    logger.debug(f"Media bytes: {image_bytes}")
+    logger.debug(f"Mime type: {image_mime_type}")
     if tool_context:
-        image_bytes = images[0].image.image_bytes
-        artifact_part = types.Part.from_bytes(mime_type="image/png", data=image_bytes)
-        await tool_context.save_artifact("generated_image.png", artifact_part)
+        await tool_context.save_artifact("generated_image.png", types.Part.from_bytes(
+            data=image_bytes, mime_type=image_mime_type
+        ))
 
-    output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
-    output_folder.mkdir(parents=True, exist_ok=True)
-    for i, generated_image in enumerate(images):
-        try:
-            image = Image.open(BytesIO(generated_image.image.image_bytes))
-            output_path = output_folder / f"generated_image_{i + 1}.png"
-            image.save(output_path)
-            logger.info(f"Image saved to {output_path}")
-        except Exception as e:
-            logger.error(f"Failed to save image {i}: {e}")
+    image = Image.open(BytesIO(image_bytes))
+    output_path = output_folder / f"generated_image.png"
+    image.save(output_path)
+    logger.info(f"Image saved to {output_path} successfully.")
 
 
 async def generate_image(enhanced_prompt: str, tool_context: Optional[ToolContext] = None) -> typing.Dict[str, str]:
@@ -85,34 +67,49 @@ async def generate_image(enhanced_prompt: str, tool_context: Optional[ToolContex
     Returns:
         dict[str, str]: A dictionary containing the status and message of the operation.
     """
+    media_files_bucket_gs_uri = os.getenv("MEDIA_FILES_BUCKET_GCS_URI", None)
+    media_files_local_path = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
+    media_files_local_path.mkdir(parents=True, exist_ok=True)
+
+
+    if not media_files_bucket_gs_uri:
+        raise ValueError("MEDIA_FILES_BUCKET_GS_URI environment variable is not set.")
     try:
         if not enhanced_prompt.strip():
             raise ValueError("Prompt must not be empty.")
-        response = client.models.generate_images(
+        response = genai_client.models.generate_images(
             model=os.getenv("IMAGEN_MODEL_ID","imagen-4.0-generate-preview-06-06"),
             prompt=enhanced_prompt,
-            config=types.GenerateImagesConfig(number_of_images=1),
+            config=types.GenerateImagesConfig(
+                number_of_images=1,
+                output_gcs_uri=media_files_bucket_gs_uri,
+            ),
         )
-
         if not response.generated_images:
             raise RuntimeError("No images were generated. Check the prompt and model configuration.")
 
         logger.info(f"Generated {len(response.generated_images)} image(s).")
+        logger.info(response.generated_images)
+        generated_image = response.generated_images[0].image
+        await save_generated_image(generated_image, media_files_local_path,  tool_context)
 
-        await save_generated_images(response.generated_images, tool_context)
+        if tool_context:
+            tool_context.state["generated_image_url"] = generated_image.gcs_uri
+
         return {
             "status": "success",
-            "message": "Image generated and saved successfully."
+            "message": "Image generated and saved successfully.",
+            "image_gcs_uri": generated_image.gcs_uri
         }
     except Exception as e:
         logger.error(f"Error generating image: {e}")
         return {
             "status": "error",
-            "message": str(e)
+            "message": str(e),
+            "image_gcs_uri": None
         }
-
-
 
 if __name__ == "__main__":
     test_prompt = "A futuristic cityscape at sunset, with flying cars and neon lights."
-    asyncio.run(generate_image(test_prompt))
+    output = asyncio.run(generate_image(test_prompt))
+    print(output)

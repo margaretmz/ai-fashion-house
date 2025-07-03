@@ -1,186 +1,213 @@
 import asyncio
 import logging
+import mimetypes
 import os
+import time
+from io import BytesIO
 from pathlib import Path
-from typing import Optional, Any
-from urllib.parse import urlparse
+from typing import Optional
 
 import aiofiles
-import httpx
 from dotenv import load_dotenv, find_dotenv
-from google import genai
 from google.adk.tools import ToolContext
 from google.cloud import storage
 from google.genai import types
+from google.genai.errors import ClientError
+
+from ai_fashion_house.agents.marketing_agent.prompts import get_image_caption_prompt
+from ai_fashion_house.utils.gcp_utils import get_authenticated_genai_client, parse_gcs_uri, upload_media_file_to_gcs, \
+    download_media_file_from_gcs
 
 # Load environment variables
 load_dotenv(find_dotenv())
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Constants
-CAPTION_PROMPT = (
-    "Craft a vivid, high-fashion caption for this image. "
-    "Be imaginative and meticulously descriptive—highlight the garment’s design, including every visible detail of the dress: "
-    "its color, texture, fabric, silhouette, stitching, embellishments, and movement. "
-    "If the model is visible, describe their appearance, pose, expression, and how they interact with the garment. "
-    "If the model is not shown, assume the dress is worn by a tall, elegant runway model "
-    "with confident posture and fluid motion, captured mid-stride under soft, ambient lighting. "
-    "The caption should evoke the tone of a luxury fashion film or editorial spread. "
-    "Focus on conveying the atmosphere of the scene while giving special attention to the dress’s craftsmanship, "
-    "visual impact, and how it flows or reacts to the model’s movement."
-)
-
-VEO2_OUTPUT_GCS_URI = os.getenv("VEO2_OUTPUT_GCS_URI")
+genai_client = get_authenticated_genai_client()
+gcs_client = storage.Client()
 
 
-def use_vertexai() -> bool:
-    return os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "").strip().lower() == "1"
+def caption_image(image_uri: str) -> str:
+    """
+    Uses Gemini to generate a fashion-themed caption prompt from an image.
 
+    Args:
+        image_uri (str): The GCS URI of the image to caption.
 
-def resolve_client_credentials() -> genai.Client:
-    if use_vertexai():
-        project = os.getenv("GOOGLE_CLOUD_PROJECT")
-        location = os.getenv("GOOGLE_CLOUD_LOCATION")
-        if not project or not location:
-            raise EnvironmentError("GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION must be set.")
-        return genai.Client(project=project, location=location)
+    Returns:
+        str: A descriptive prompt/caption for the image.
+    """
 
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GOOGLE_API_KEY must be set.")
-    return genai.Client(api_key=api_key)
-
-
-def parse_gcs_uri(gcs_url: str) -> tuple[str, str]:
-    if not gcs_url.startswith("gs://"):
-        raise ValueError(f"Invalid GCS URL: {gcs_url}")
-    parsed = urlparse(gcs_url)
-    return parsed.netloc, parsed.path.lstrip("/")
-
-
-def fetch_video_bytes_from_gcs_url(gcs_url: str, gcs_client: Optional[storage.Client] = None) -> bytes:
-    bucket_name, blob_path = parse_gcs_uri(gcs_url)
-    gcs_client = gcs_client or storage.Client()
-    blob = gcs_client.bucket(bucket_name).blob(blob_path)
-    if not blob.exists():
-        raise FileNotFoundError(f"Blob not found at {gcs_url}")
-    return blob.download_as_bytes()
-
-
-async def generate_reference_image_prompt(image_artifact: types.Part) -> str:
-    response = client.models.generate_content(
+    response = genai_client.models.generate_content(
         model="gemini-2.5-flash",
-        contents=[image_artifact, types.Part.from_text(text=CAPTION_PROMPT)],
+          contents=[types.Part.from_uri(
+            file_uri=image_uri,
+            mime_type="image/png"
+        ), types.Part.from_text(text=get_image_caption_prompt())],
     )
-    return response.text.strip()
+    return response.text
 
 
-async def upload_video_to_server(video_bytes: bytes, filename: str, upload_url: str):
-    async with httpx.AsyncClient() as http:
-        response = await http.post(
-            upload_url,
-            files={"file": (filename, video_bytes, "video/mp4")},
-        )
-        response.raise_for_status()
-        return response.json()
+async def save_generated_video(video: types.Video, output_folder: Path, tool_context: Optional[ToolContext] = None) -> None:
+    """
+    Save generated images to a specified output folder and optionally save as an artifact using the ToolContext.
+    :param image: The generated image object containing the image bytes.
+    :param output_folder: The folder where the images will be saved.
+    :param tool_context:
+    :return:
+    """
+    video_gcs_uri = video.uri
+    if not video_gcs_uri:
+        raise ValueError("Image GCS URI is not provided in the generated image object.")
+
+    # Download the image bytes from GCS
+    bucket_name, blob_path = parse_gcs_uri(video_gcs_uri)
+    video_bytes, video_mime_type = download_media_file_from_gcs(
+        bucket_name=bucket_name,
+        blob_path=blob_path
+    )
+    logger.debug(f"Media bytes: {video_bytes}")
+    logger.debug(f"Mime type: {video_mime_type}")
+    if tool_context:
+        await tool_context.save_artifact("generated_video.mp4", types.Part.from_bytes(
+            data=video_bytes, mime_type=video_mime_type
+        ))
+
+    output_path = output_folder / f"generated_video.mp4"
+    async with aiofiles.open(output_path, "wb") as out_file:
+        await out_file.write(video_bytes)
+    logger.info(f"Video saved to {output_path} successfully.")
 
 
-async def save_generated_videos(
-    response: types.GenerateVideosResponse,
-    tool_context: Optional[ToolContext] = None,
-    gcs_client: Optional[storage.Client] = None,
-    save_to_disk: bool = False
-) -> None:
+async def generate_video(image_gcs_uri: str, tool_context: Optional[ToolContext] = None):
+    """
+    Main entry point to generate a fashion-themed video from a single input image.
 
-    for idx, generated_video in enumerate(response.generated_videos):
-        try:
-            video_uri = generated_video.video.uri
-            video_bytes = (
-                fetch_video_bytes_from_gcs_url(video_uri, gcs_client)
-                if use_vertexai()
-                else client.files.download(file=generated_video.video)
-            )
+    This function supports loading from a ToolContext or directly from local disk,
+    uploading the image to GCS, and using Gemini to generate video content with a fallback
+    to dynamic prompt generation if the initial request fails.
 
-            if tool_context:
-                artifact_name = f"generated_video_{idx + 1}.mp4"
-                part = types.Part.from_bytes(mime_type="video/mp4",data=video_bytes)
-                await tool_context.save_artifact(artifact_name, part)
-                logger.info(f"Saved artifact: {artifact_name}")
+    Args:
+        image_gcs_uri (str): The GCS URI of the input image to use for video generation.
+        tool_context (Optional[ToolContext]): Optional context for loading artifacts.
 
-            if save_to_disk:
-                output_folder = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
-                output_folder.mkdir(parents=True, exist_ok=True)
-                output_path = output_folder / f"generated_video_{idx + 1}.mp4"
-                async with aiofiles.open(output_path, "wb") as out_file:
-                    await out_file.write(video_bytes)
-                logger.info(f"Saved video to disk: {output_path}")
-
-        except Exception as e:
-            logger.exception(f"Failed to save video {idx + 1}: {e}")
-            raise RuntimeError(f"Failed to save video {idx + 1}: {e}")
-
-
-# === Main Video Generation Function ===
-
-async def generate_video(
-    image_path: str,
-    tool_context: Optional[ToolContext] = None,
-    save_to_disk: bool = True
-) -> dict[str, Any]:
+    Returns:
+        dict[str, Any]: A dictionary containing the result status and message.
+    """
     try:
-        if tool_context:
-            image_artifact = await tool_context.load_artifact(image_path)
-            if not image_artifact:
-                raise ValueError(f"Artifact not found for {image_path}")
-        else:
-            async with aiofiles.open(image_path, "rb") as f:
-                image_data = await f.read()
-            image_artifact = types.Part(inline_data=types.Blob(mime_type="image/png", data=image_data))
+        media_files_bucket_gs_uri = os.getenv("MEDIA_FILES_BUCKET_GCS_URI", None)
+        media_files_local_path = Path(os.getenv("OUTPUT_FOLDER", "outputs"))
 
-        prompt = await generate_reference_image_prompt(image_artifact)
+        if not media_files_bucket_gs_uri:
+            raise ValueError("MEDIA_FILES_BUCKET_GCS_URI environment variable is not set.")
 
-        operation = client.models.generate_videos(
-            model=os.getenv("VEO2_MODEL_ID", "veo-3.0-generate-preview"),
-            prompt=prompt,
-            image=image_artifact.file_data,
-            config=types.GenerateVideosConfig(
-                number_of_videos=1,
-                person_generation="allow_adult",
-                aspect_ratio="16:9",
-                duration_seconds=8,
-                output_gcs_uri=VEO2_OUTPUT_GCS_URI,
-            ),
-        )
 
-        while not operation.done:
-            await asyncio.sleep(20)
-            operation = client.operations.get(operation)
-            if operation.error:
-                raise RuntimeError(operation.error.get("message"))
+        try:
+            # attempt to generate image-to-video directly
+            logger.info("Attempting to generate video from image...")
+            prompt = "The fashion model in the image walks toward the camera with a smile."
+            generated_video = try_generate_video(prompt, gcs_image_uri=image_gcs_uri)
 
-        await save_generated_videos(
-            operation.response,
-            tool_context,
-            gcs_client,
-            save_to_disk=save_to_disk
-        )
 
+        except ClientError as e:
+            logger.warning(f"Initial video generation failed: {e}")
+            if e.code != 400:
+                raise
+            # Fallback: use Gemini to generate a caption prompt from the image and retry
+            logger.info("Retrying with Gemini-generated prompt...")
+            prompt = caption_image(image_gcs_uri)
+            generated_video =  try_generate_video(prompt, gcs_image_uri=None)
+
+        await save_generated_video(generated_video, media_files_local_path, tool_context)
+        logger.info(f"Video generation response: {generated_video.uri}")
+        logger.info("Video generated successfully")
         return {"status": "success", "message": "Video generated successfully"}
-
     except Exception as e:
         logger.exception("Error in generate_video")
         return {"status": "error", "message": str(e)}
 
 
-client = resolve_client_credentials()
-gcs_client = storage.Client(project=os.getenv("GOOGLE_CLOUD_PROJECT")) if use_vertexai() else None
+def try_generate_video(
+    prompt: str,
+    gcs_image_uri: Optional[str] = None
+) -> types.Video:
+    """
+    Attempts to generate a video using a given prompt and optional image URI.
+
+    Args:
+        prompt (str): The descriptive prompt for the fashion scene.
+        gcs_image_uri (Optional[str]): GCS URI of the reference image (optional).
+
+    Returns:
+        types.GenerateVideosResponse: The response containing generated video(s).
+
+    Raises:
+        ClientError: If the generation fails due to API or validation errors.
+    """
+
+    media_files_bucket_gs_uri = os.getenv("MEDIA_FILES_BUCKET_GCS_URI", None)
+    if not media_files_bucket_gs_uri:
+        raise ValueError("MEDIA_FILES_BUCKET_GCS_URI environment variable is not set.")
+
+    image_input = None
+    if gcs_image_uri:
+        image_input = types.Image(
+            gcs_uri=gcs_image_uri,
+            mime_type="image/png"
+        )
+
+    # Launch video generation
+    video_generation_operation = genai_client.models.generate_videos(
+        model=os.getenv("VEO2_MODEL_ID", "veo-3.0-generate-preview"),
+        prompt=prompt,
+        image=image_input,
+        config=types.GenerateVideosConfig(
+            number_of_videos=1,
+            person_generation="allow_adult",
+            aspect_ratio="16:9",
+            duration_seconds=8,
+            output_gcs_uri=media_files_bucket_gs_uri,
+        ),
+    )
+    # Wait for the operation to complete
+    while not video_generation_operation.done:
+        time.sleep(20)
+        video_generation_operation = genai_client.operations.get(video_generation_operation)
+        if video_generation_operation.error:
+            raise ClientError(f"Video generation failed: {video_generation_operation.error}")
+
+    # Check the response for generated videos
+    video_generation_operation_response = video_generation_operation.response
+    if not video_generation_operation_response.generated_videos:
+        raise RuntimeError("No videos were generated. Check the prompt and model configuration.")
+
+    # Log the generated video details
+    logger.info(f"Generated {len(video_generation_operation_response.generated_videos)} video(s).")
+    return video_generation_operation_response.generated_videos[0].video
+
+async def main():
+    """
+    Main entry point for the script.
+    This function can be used to run the video generation process.
+    """
+    media_files_bucket_gs_uri = os.getenv("MEDIA_FILES_BUCKET_GCS_URI", None)
+
+    test_image_path = "/Users/haruiz/open-source/ai-fashion-house/outputs/generated_image_1.png"
+    async with aiofiles.open(test_image_path, "rb") as f:
+        image_bytes = await f.read()
+    image_mimetype = mimetypes.guess_type(test_image_path)[0]
+    image_gcs_path = f"{media_files_bucket_gs_uri}/{os.path.basename(test_image_path)}"
+    bucket_name, blob_path = parse_gcs_uri(image_gcs_path)
+    upload_media_file_to_gcs(
+        bucket_name=bucket_name,
+        blob_path=blob_path,
+        media_bytes=image_bytes,
+        mime_type=image_mimetype
+    )
+    output = await generate_video(image_gcs_path)
+    print(output)
 
 if __name__ == "__main__":
-    test_image_path = "/Users/haruiz/open-source/ai-fashion-house/outputs/generated_image_1.png"
-    asyncio.run(generate_video(
-        test_image_path,
-        save_to_disk=True# replace with your upload URL if needed
-    ))
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())
+
