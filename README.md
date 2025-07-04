@@ -91,8 +91,8 @@ GOOGLE_CLOUD_PROJECT=<your_google_cloud_project_id>
 GOOGLE_CLOUD_LOCATION=us-central1
 
 # RAG settings
-BIGQUERY_DATASET_ID=met_data2
-BIGQUERY_CONNECTION_ID=met_data_conn2
+BIGQUERY_DATASET_ID=met_data
+BIGQUERY_CONNECTION_ID=met_data_conn
 BIGQUERY_REGION=US
 
 # Embeddings and captioning models
@@ -103,9 +103,10 @@ BIGQUERY_CAPTIONING_MODEL=gemini-2.0-flash
 BIGQUERY_TABLE_ID=fashion_ai_met
 BIGQUERY_VECTOR_INDEX_ID=met_data_index
 
-VEO2_OUTPUT_GCS_URI=gs://myfiles2025
 VEO2_MODEL_ID=veo-3.0-generate-preview
 IMAGEN_MODEL_ID=imagen-4.0-generate-preview-06-06
+
+MEDIA_FILES_BUCKET_GCS_URI=gs://myfiles2025
 ```
 
 ### Set Up MET RAG(Retrieval-Augmented Generation)
