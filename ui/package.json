@@ -21,6 +21,7 @@
     "papaparse": "^5.5.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
     "react-router": "^7.6.2",
     "react-tsparticles": "^2.12.2",
     "react-use-websocket": "^4.13.0",

@@ -11,7 +11,7 @@ CREATE OR REPLACE MODEL `met_data.embeddings_model`
 
 # create ai_ouputs table
 
-CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs` AS
+CREATE OR REPLACE TABLE `met_data.fashion_ai_met` AS
 SELECT
   ml_generate_text_result['candidates'][0]['content'] AS generated_text,
   * EXCEPT (ml_generate_text_result)
@@ -19,7 +19,7 @@ FROM
   ML.GENERATE_TEXT(
     MODEL `met_data.gemini_model`,
     (
-       SELECT
+      SELECT
         objects.object_id,
         objects.object_name,
         objects.object_begin_date,
@@ -33,17 +33,17 @@ FROM
           - Medium: %s
           - Date: %s - %s
 
-Structure your response using the following format and section headings:
-  Overall Impression:
-  Fabric and Print
-  Color pallette
-  Bodice
-  Sleeves
-  Skirt
+            Structure your response using the following format and section headings:
+              Overall Impression:
+              Fabric and Print
+              Color pallette
+              Bodice
+              Sleeves
+              Skirt
 
-Do not include introductory phrases like “Here is the description” or “This image shows.”
-Do not add bullet points or formatting beyond the category headers.
-Output should be in plain text, written in complete sentences with a fashion-specific, fluent tone.
+            Do not include introductory phrases like “Here is the description” or “This image shows.”
+            Do not add bullet points or formatting beyond the category headers.
+            Output should be in plain text, written in complete sentences with a fashion-specific, fluent tone.
 
           Image URL: %s''',
           IFNULL(objects.culture, '(not specified)'),
@@ -55,11 +55,11 @@ Output should be in plain text, written in complete sentences with a fashion-spe
           images.gcs_url
         ) AS prompt,
         images.gcs_url,
-        images.original_image_url,
+        images.original_image_url
       FROM (
         SELECT
           *,
-          ROW_NUMBER() OVER (PARTITION BY original_image_url ORDER BY object_id) AS rn
+          ROW_NUMBER() OVER (PARTITION BY object_id ORDER BY gcs_url) AS rn
         FROM
           `bigquery-public-data.the_met.images`
         WHERE
@@ -80,7 +80,7 @@ Output should be in plain text, written in complete sentences with a fashion-spe
         )
       ORDER BY
         objects.title
-      -- LIMIT 5
+
     ),
     STRUCT(
       1.0 AS temperature,
@@ -89,34 +89,34 @@ Output should be in plain text, written in complete sentences with a fashion-spe
   );
 
 
-# create ai_ouputs formatted table
+# create fashion_ai_met_formatted formatted table
 
-CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs_formatted` AS
+CREATE OR REPLACE TABLE `met_data.fashion_ai_met_formatted` AS
 SELECT
   * EXCEPT (generated_text),
   JSON_VALUE(generated_text, '$.parts[0].text') AS generated_text
 FROM
-  `met_data.fashion_ai_outputs`;
+  `met_data.fashion_ai_met`;
 
 # Setup RAG
 
-# embeddings
-CREATE OR REPLACE TABLE `met_data.fashion_ai_outputs_embeddings` AS
+# fashion_ai_met_embeddings
+CREATE OR REPLACE TABLE `met_data.fashion_ai_met_embeddings` AS
 SELECT * FROM ML.GENERATE_TEXT_EMBEDDING(
   MODEL `met_data.embeddings_model`,(
       SELECT * EXCEPT(generated_text), generated_text AS content
-      FROM `met_data.fashion_ai_outputs_formatted`
+      FROM `met_data.fashion_ai_met_formatted`
       WHERE gcs_url IS NOT NULL
     )
 );
 
-# create vector index
-CREATE OR REPLACE VECTOR INDEX met_data_index ON met_data.fashion_ai_outputs_embeddings(text_embedding)
-OPTIONS(index_type = 'IVF', distance_type = 'COSINE',
-ivf_options = '{"num_lists": 10}');
+# create vector index (optional
+-- CREATE OR REPLACE VECTOR INDEX met_data_index ON met_data.fashion_ai_met_embeddings(text_embedding)
+-- OPTIONS(index_type = 'IVF', distance_type = 'COSINE',
+-- ivf_options = '{"num_lists": 10}');
 
- SELECT table_name, index_name, index_status, coverage_percentage, last_refresh_time,disable_reason FROM `met_data.INFORMATION_SCHEMA.VECTOR_INDEXES`
-WHERE table_name = "fashion_ai_outputs_embeddings";
+--  SELECT table_name, index_name, index_status, coverage_percentage, last_refresh_time,disable_reason FROM `met_data.INFORMATION_SCHEMA.VECTOR_INDEXES`
+-- WHERE table_name = "fashion_ai_met_embeddings";
 
 
 

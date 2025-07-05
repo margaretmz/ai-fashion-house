@@ -1,9 +1,12 @@
 import base64
+import importlib
 import io
 import math
+import typing
+from pathlib import Path
 
 from PIL.Image import Image as PILImage
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFont, ImageDraw
 from typing import  List
 
 from google.cloud import storage
@@ -170,42 +173,123 @@ def make_images_grid(images_list: List[PILImage], num_cols: int, resample: int =
     return make_images_grid_from_2dlist(images_list_2d, resample=resample)
 
 
+from PIL import Image, ImageDraw, ImageFont
 
-def create_moodboard(
-    image_urls: List[str],
-    columns: int = 4,
-    gcs_client : storage.Client = None
+def add_watermark(
+    image: Image.Image,
+    text: str,
+    position: str = 'bottom_right',
+    opacity: int = 230,
+    font_size_ratio: float = 0.03,
+    font_path: str = "fonts/GreatVibes-Regular.ttf",
+    box_padding: int = 20,
+    box_color: tuple = (0, 0, 0, 120)  # semi-transparent black
 ) -> Image.Image:
     """
-    Creates a moodboard from GCS image URLs using Pillow without cropping the images.
-    Resizes each image to fit within the thumbnail box while maintaining aspect ratio.
-    Images are arranged in a grid, centered in their cells, with consistent padding and outer margin.
+    Adds a semi-transparent watermark with a background box and cursive font.
+    Ensures the watermark fits within the image dimensions.
+    """
+    watermark = image.copy().convert("RGBA")
+    txt_layer = Image.new("RGBA", watermark.size, (255, 255, 255, 0))
+    draw = ImageDraw.Draw(txt_layer)
+
+    # Start with base font size
+    base_dim = min(image.width, image.height)
+    font_size = int(base_dim * font_size_ratio)
+
+    # Try to load the font
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except IOError:
+        logger.warning(f"Could not load custom font at {font_path}, using default.")
+        font = ImageFont.load_default()
+
+    # Adjust font size to ensure text fits
+    max_text_width = image.width * 0.8  # Leave margin
+    while True:
+        text_bbox = draw.textbbox((0, 0), text, font=font)
+        text_width = text_bbox[2] - text_bbox[0]
+        text_height = text_bbox[3] - text_bbox[1]
+        if text_width <= max_text_width:
+            break
+        font_size -= 1
+        if font_size <= 10:  # Set a minimum font size
+            break
+        font = ImageFont.truetype(font_path, font_size)
+
+    # Compute box dimensions
+    box_w = text_width + 2 * box_padding
+    box_h = text_height + 2 * box_padding
+
+    # Determine position
+    padding = 30
+    positions = {
+        "top_left": (padding, padding),
+        "top_right": (image.width - box_w - padding, padding),
+        "bottom_left": (padding, image.height - box_h - padding),
+        "bottom_right": (image.width - box_w - padding, image.height - box_h - padding),
+        "center": ((image.width - box_w) // 2, (image.height - box_h) // 2),
+    }
+    pos = positions.get(position, positions["bottom_right"])
+
+    # Draw background box
+    box_coords = [pos[0], pos[1], pos[0] + box_w, pos[1] + box_h]
+    draw.rectangle(box_coords, fill=box_color)
+
+    # Draw shadow and text
+    text_pos = (pos[0] + box_padding, pos[1] + box_padding)
+    draw.text((text_pos[0] + 2, text_pos[1] + 2), text, font=font, fill=(0, 0, 0, 160))
+    draw.text(text_pos, text, font=font, fill=(255, 255, 255, opacity))
+
+    return Image.alpha_composite(watermark, txt_layer).convert("RGB")
+
+
+
+
+def create_moodboard(
+        image_urls: List[str],
+        columns: int = 4,
+        moodboard_watermark_text: typing.Optional[str] = None,
+        watermark_position: str = "bottom_right",
+        moodboard_watermark_font_path: str = "fonts/GreatVibes-Regular.ttf",
+        moodboard_watermark_font_ratio: float = 0.06,
+        gcs_client: typing.Optional[storage.Client] = None
+) -> Image.Image:
+    """
+    Creates a moodboard with optional watermark.
 
     Args:
-        image_urls (List[str]): List of GCS image URLs (gs://...).
-        columns (int): Number of columns in the moodboard grid.
-        gcs_client (storage.Client): Optional GCS client for loading images. If None, uses default client.
+        image_urls (List[str]): GCS image URLs (gs://...).
+        columns (int): Grid columns.
+        moodboard_watermark_text (str): Optional watermark text.
+        watermark_position (str): Position of watermark on final image.
+        moodboard_watermark_font_path (str): Path to the font file for watermark.
+        gcs_client (storage.Client): Optional GCS client.
 
     Returns:
-        PIL.Image.Image: The moodboard image assembled in memory.
+        PIL.Image: Final moodboard.
     """
     if not image_urls:
         raise ValueError("No images provided for moodboard.")
+
     moodboard_images = []
-    for i, url in enumerate(image_urls):
+    for url in image_urls:
         img = load_gcs_image(url, gcs_client=gcs_client)
         if img:
             img = add_pill_image_border_and_shadow(img, border_size=10)
-            img.thumbnail(
-                (800, 600),  # Resize to fit within a 300x300 box
-                resample=Image.Resampling.LANCZOS
-            )
+            img.thumbnail((800, 600), resample=Image.Resampling.LANCZOS)
             moodboard_images.append(img)
         else:
             logger.warning(f"[⚠️] Skipping unavailable image: {url}")
-    board = make_images_grid(
-        moodboard_images,
-        num_cols=columns,
-        resample=Image.Resampling.LANCZOS
-    )
+
+    board = make_images_grid(moodboard_images, num_cols=columns, resample=Image.Resampling.LANCZOS)
+
+    if moodboard_watermark_text:
+        logger.info(f"[<UNK>] Adding watermark: {moodboard_watermark_text}")
+        board = add_watermark(board,
+                              moodboard_watermark_text,
+                              position=watermark_position,
+                              font_size_ratio=moodboard_watermark_font_ratio,
+                              font_path=moodboard_watermark_font_path)
+
     return board

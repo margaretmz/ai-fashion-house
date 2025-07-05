@@ -8,7 +8,7 @@ def get_instructions() -> str:
         "2. Invoke the **style_agent_tool** to interpret the concept and generate a vivid, structured, and fashion-specific prompt.\n"
         "3. Pass the refined prompt to the **image_generation_tool** to produce a high-quality fashion image.\n"
         "4. Use the resulting image: `generated_image.png` to create a short, cinematic fashion video targeting a fashion-forward audience.\n\n"
-        "5. Write an strong social media post that captures the essence of the fashion image and video, designed to engage and inspire followers.\n\n"
+        "5. Write an strong social media post that captures the essence of the fashion image and video, the historical inspiration,  designed to engage and inspire followers.\n\n"
         "Don't modify the enhanced prompt ; use them as-is for video generation.\n"
         "Ensure each step flows smoothly, the visual output is coherent and expressive, and the final result aligns with the user's creative intent."
     )

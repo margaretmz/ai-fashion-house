@@ -125,7 +125,7 @@ def create_gemini_captions_table():
     FROM
       ML.GENERATE_TEXT(
         MODEL `{bigquery_dataset_id}.{bigquery_caption_model_id}`,(
-        SELECT
+         SELECT
         objects.object_id,
         objects.object_name,
         objects.object_begin_date,
@@ -139,17 +139,17 @@ def create_gemini_captions_table():
           - Medium: %s
           - Date: %s - %s
 
-        Structure your response using the following format and section headings:
-          Overall Impression:
-          Fabric and Print
-          Color pallette
-          Bodice
-          Sleeves
-          Skirt
-        
-        Do not include introductory phrases like “Here is the description” or “This image shows.”
-        Do not add bullet points or formatting beyond the category headers.
-        Output should be in plain text, written in complete sentences with a fashion-specific, fluent tone.
+            Structure your response using the following format and section headings:
+              Overall Impression:
+              Fabric and Print
+              Color pallette 
+              Bodice
+              Sleeves
+              Skirt    
+
+            Do not include introductory phrases like “Here is the description” or “This image shows.”
+            Do not add bullet points or formatting beyond the category headers.
+            Output should be in plain text, written in complete sentences with a fashion-specific, fluent tone.
 
           Image URL: %s''',
           IFNULL(objects.culture, '(not specified)'),
@@ -161,22 +161,22 @@ def create_gemini_captions_table():
           images.gcs_url
         ) AS prompt,
         images.gcs_url,
-        images.original_image_url,
+        images.original_image_url
       FROM (
-        SELECT
+        SELECT 
           *,
-          ROW_NUMBER() OVER (PARTITION BY original_image_url ORDER BY object_id) AS rn
-        FROM
+          ROW_NUMBER() OVER (PARTITION BY object_id ORDER BY gcs_url) AS rn
+        FROM 
           `bigquery-public-data.the_met.images`
-        WHERE
+        WHERE 
           original_image_url IS NOT NULL
           AND gcs_url IS NOT NULL
       ) AS images
-      JOIN
+      JOIN 
         `bigquery-public-data.the_met.objects` AS objects
-      ON
+      ON 
         images.object_id = objects.object_id
-      WHERE
+      WHERE 
         images.rn = 1
         AND objects.department = "Costume Institute"
         AND objects.is_public_domain = TRUE
@@ -184,9 +184,8 @@ def create_gemini_captions_table():
           LOWER(objects.object_name) LIKE "%dress%"
           OR LOWER(objects.object_name) LIKE "%evening dress%"
         )
-      ORDER BY
+      ORDER BY 
         objects.title
-      -- LIMIT 5
     ),
     STRUCT(
       1.0 AS temperature,
@@ -267,7 +266,7 @@ def main():
         progress.advance(task)
 
         create_fashion_embeddings_table()
-        create_vector_index(num_lists=10)
+        # create_vector_index(num_lists=10)
         progress.advance(task)
 
     print("\n[bold cyan]\u2705 RAG setup complete.[/bold cyan]")

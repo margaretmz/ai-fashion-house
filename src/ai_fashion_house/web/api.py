@@ -98,6 +98,7 @@ async def websocket_receiver(websocket: WebSocket):
                     if event.is_final_response():
                         logger.info(f"✅ Final response for session {session_id}")
                         await send_artifacts(runner, user_id, session_id, websocket)
+                        await send_state(runner, user_id, session_id, websocket)
                         break
             except Exception as e:
                 logger.error(f"❌ Error during session run: {e}")
@@ -167,3 +168,22 @@ async def send_artifacts(
                 "content": encoded
             }
         })
+
+async def send_state(
+    runner: InMemoryRunner,
+    user_id: str,
+    session_id: str,
+    websocket: WebSocket
+) -> None:
+    """Send the current state of the session to the WebSocket."""
+    session = await runner.session_service.get_session(
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
+    )
+    state = session.state if session else {}
+    logger.info(f"📊 Sending session state for {session_id}: {state}")
+    await websocket.send_json({
+        "event": "state",
+        "data": state
+    })
+
+

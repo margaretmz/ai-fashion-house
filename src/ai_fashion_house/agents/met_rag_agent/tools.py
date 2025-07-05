@@ -10,6 +10,7 @@ from dotenv import load_dotenv, find_dotenv
 from google.adk.tools import ToolContext
 from google.cloud import bigquery, storage
 
+from ai_fashion_house.utils.gcp_utils import get_authenticated_genai_client
 from ai_fashion_house.utils.image_utils import pil_image_to_png_bytes, create_moodboard
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 # --- Load Environment Variables ---
 load_dotenv(find_dotenv())
 
-
+FONTS_FOLDER = Path(__file__).resolve().parents[2] / "assets/fonts"
 GOOGLE_PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 GOOGLE_LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 
@@ -32,6 +33,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 # --- Initialize Clients ---
 bq_client = bigquery.Client(project=GOOGLE_PROJECT_ID, location=BIGQUERY_REGION)
 gcs_client = storage.Client(project=GOOGLE_PROJECT_ID)
+genai_client = get_authenticated_genai_client()
 
 
 def execute_sql_bigquery(sql: str) -> pd.DataFrame:
@@ -57,6 +59,68 @@ def execute_sql_bigquery(sql: str) -> pd.DataFrame:
         raise
 
 
+def enhance_query(query: str) -> str:
+    """
+    Enhances the user query by appending additional context for fashion-related searches,
+    using a Gemini model to reformulate the query for better alignment with a RAG system.
+
+    Args:
+        query (str): Original user query.
+
+    Returns:
+        str: Reformulated query suited for structured image caption retrieval.
+    """
+    rag_query_prompt = f"""
+        Given the user query: 
+        
+        {query}
+        
+        Reformulate this query to better align with a Retrieval-Augmented Generation (RAG) system that indexes image captions generated using the following structure:
+        
+        Caption Format:
+        - Overall Impression
+        - Fabric and Print
+        - Color Palette
+        - Bodice
+        - Sleeves
+        - Skirt
+        
+        Metadata Included When Available:
+        - Culture
+        - Period
+        - Artist
+        - Medium
+        - Date (start - end)
+        
+        Description Style:
+        - Full sentences written in a fluent, fashion-specific tone
+        - No bullet points or introductory phrases
+        - If metadata is missing, Culture and Period are emphasized
+        
+        Instructions:
+        1. Rephrase the user query into a fashion-aware, semantically rich prompt to match the structured caption content.
+        2. Expand references to styles, eras, or design inspirations into concrete visual or historical elements (e.g., “New Look” → “cinched waist, full skirt, post-war elegance”), **but only if such references are explicitly or clearly implied by the user query**.
+        3. Use vocabulary aligned with how dress descriptions are written (materials, silhouettes, fashion movements, cultural references).
+        4. **Do not guess or fabricate metadata or dress features not present in the original query.** Focus only on enhancing what's provided.
+        5. Ensure the reformulated query supports retrieval even if only partial metadata is available in the captions.
+
+        Example:
+        - User Query: “Help me design a dress inspired by 1950s New Look”
+        - Reformulated: “Describe dresses from the 1950s with cinched waists, voluminous skirts, and elegant post-war silhouettes characteristic of the New Look style, focusing on fabric, bodice structure, and color palette.”
+    """
+
+    # Run prompt through Gemini model
+    response = genai_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[types.Part.from_text(text=rag_query_prompt)]
+    )
+
+    # Safely extract text
+    return response.text.strip() if response.text else query
+
+
+
+
 def search_fashion_embeddings(query: str, top_k: int = 6, search_fraction: float = 0.01) -> pd.DataFrame:
     """
     Performs a vector similarity search using a fashion-related query on a BigQuery embedding table.
@@ -69,6 +133,7 @@ def search_fashion_embeddings(query: str, top_k: int = 6, search_fraction: float
     Returns:
         pd.DataFrame: A DataFrame with matching content, distances, and image URLs.
     """
+    query = enhance_query(query)
     sql = f"""
     SELECT 
     base.object_id,
@@ -123,7 +188,14 @@ async def retrieve_met_images(user_query: str, top_k: int = 6, search_fraction: 
         logger.info(f"[✅] Retrieved {len(results)} matching results.")
 
         image_urls = results['gcs_url'].dropna().tolist()
-        moodboard_image = create_moodboard(image_urls, gcs_client=gcs_client)
+        moodboard_image = create_moodboard(
+            image_urls,
+            gcs_client=gcs_client,
+            watermark_position="center",
+            moodboard_watermark_text="Fashion Moodboard — Inspired by The Met Collection",
+            moodboard_watermark_font_ratio=0.06,
+            moodboard_watermark_font_path=str(FONTS_FOLDER / "GreatVibes-Regular.ttf"),
+        )
         if tool_context:
             # Save moodboard to GCS if tool context is provided
             moodboard_artifact_part = types.Part.from_bytes(mime_type="image/png",data=pil_image_to_png_bytes(moodboard_image))
@@ -181,17 +253,18 @@ def run_retrieve_met_images_sync(
 
 # --- Entry Point ---
 if __name__ == '__main__':
+
     logger.info("[📂] Listing tables in MET dataset...")
     tables = bq_client.list_tables("bigquery-public-data.the_met")
     for table in tables:
         logger.info(f"• {table.project}.{table.table_id}")
 
-    # query = ("I’m looking for inspiration for a bohemian-style maxi dress with floral prints and "
-    #          "flowing sleeves, perfect for a summer festival.")
-    query = "Help me design a dress inspired by 1950's New Look."
+    query = ("I’m looking for inspiration for a bohemian-style maxi dress with floral prints and "
+             "flowing sleeves, perfect for a summer festival.")
+    # query = "Help me design a dress inspired by 1950's New Look."
     image_results = run_retrieve_met_images_sync(
         user_query=query,
-        top_k=6,
+        top_k=8,
         search_fraction=0.01
     )
     if image_results:

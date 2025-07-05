@@ -82,7 +82,12 @@ export default function App() {
       queryClient.setQueryData(['agentLogs'], (prev = []) => [...prev, { event, data }]);
     }
     if (event === 'artifact') {
+      // reset the artifacts query data
       queryClient.setQueryData(['agentArtifacts'], (prev = []) => [...prev, data]);
+    }
+    if (event === 'state') {
+      // reset the state query data
+      queryClient.setQueryData(['agentState'], (prev = {}) => ({ ...prev, ...data }));
     }
   }, [lastJsonMessage, queryClient]);
 

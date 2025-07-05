@@ -19,6 +19,7 @@ import AgentLogViewer from '../../components/AgentLogViewer/index.jsx';
 import AgentArtifactGallery from '../../components/AgentArtifactGallery/index.jsx';
 
 import { useWebSocketContext } from '../../contexts/WebSocketContext/index.jsx';
+import StateViewer from "../../components/StateViewer/index.jsx";
 
 export default function HomePage() {
   const queryClient = useQueryClient();
@@ -56,6 +57,13 @@ export default function HomePage() {
     initialData: [],
   });
 
+    const { data: agentState = {} } = useQuery({
+    queryKey: ['agentState'],
+    queryFn: () => ({}),
+    staleTime: Infinity,
+    initialData: {},
+    });
+
   const { data: agentArtifacts = [] } = useQuery({
     queryKey: ['agentArtifacts'],
     queryFn: () => [],
@@ -82,6 +90,7 @@ export default function HomePage() {
 
     queryClient.setQueryData(['agentPrompt'], inputValue);
     queryClient.setQueryData(['agentLogs'], []);
+    queryClient.setQueryData(['agentState'], {});
     queryClient.setQueryData(['agentArtifacts'], []);
     setLoading(true);
 
@@ -158,13 +167,15 @@ export default function HomePage() {
             {agentLogs.length > 0 && (
               <Box sx={{ width: '100%' }}>
                 <Tabs value={tab} onChange={(_, newValue) => setTab(newValue)} centered>
-                  <Tab label="Agent Logs" />
+                  <Tab label="Agents Log" />
+                  <Tab label="State Log" disabled={Object.keys(agentState).length === 0} />
                   <Tab label="Artifacts Gallery" disabled={agentArtifacts.length === 0} />
                 </Tabs>
 
                 <Box sx={{ mt: 3 }}>
                   {tab === 0 && <AgentLogViewer logs={agentLogs} />}
-                  {tab === 1 && <AgentArtifactGallery artifacts={agentArtifacts} />}
+                {tab === 1 && <StateViewer state={agentState} />}
+                  {tab === 2 && <AgentArtifactGallery artifacts={agentArtifacts} />}
                 </Box>
               </Box>
             )}
