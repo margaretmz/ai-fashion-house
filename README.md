@@ -1,10 +1,12 @@
 # AI Fashion House
 
-A project built for the **ADK Hackathon with Google Cloud**, **AI Fashion House** is a multi-agent system designed to assist with design inspiration, fashion image generation, and cinematic runway video creation.
+A project built for the **[ADK Hackathon with Google Cloud](https://devpost.com/software/fashion-olu3gj)**, 
+**AI Fashion House** is a multi-agent system designed to help with finding design inspirations, 
+create fashion images, and then cinematic runway video.
 
 ## What is AI Fashion House?
 
-AI Fashion House is an AI-powered fashion design assistant that transforms expressive or abstract user prompts into rich visual content. Built on a modular, multi-agent architecture, it automates the entire creative pipeline—from concept interpretation to high-fidelity visual generation—by coordinating a set of intelligent, specialized agents.
+AI Fashion House is an AI-powered fashion design system that transforms a design idea (via user prompts) into rich design visuals. Built on a modular, multi-agent architecture, it automates the entire creative pipeline—from concept to high-fidelity visual generation—by coordinating a set of intelligent, specialized agents.
 
 ## How It Works
 
@@ -14,10 +16,10 @@ The system relies on a multi-agent framework, where each agent handles a specifi
    Interprets user input to identify themes, fashion concepts, and stylistic cues.
 
 2. **Visual Reference Retrieval**
-   The `met_rag_agent` agent searches the Metropolitan Museum of Art's open-access archive (over 500,000 images) to retrieve relevant historical references.
+   The `met_rag_agent` agent searches the Metropolitan Museum of Art's open-access archive (over 500,000 images) to retrieve relevant historical designn references.
 
-   * **BigQuery RAG**: Performs semantic retrieval using Retrieval-Augmented Generation with BigQuery.
-   * **GenAI Embeddings**: Embeds captions using the `text-embedding-005` model for similarity comparison.
+   * **BigQuery RAG**: Performs semantic retrieval using Retrieval-Augmented Generation (RAG) with BigQuery.
+   * **GenAI Embeddings**: Embeds captions using the `text-embedding-005` model for similarity comparison (image search).
    * **Gemini Multimodal Analysis**: Processes both images and text to extract stylistic and structural fashion details.
 
 3. **Internet Search Expansion**
@@ -31,20 +33,22 @@ The system relies on a multi-agent framework, where each agent handles a specifi
 
    * **Imagen 3** is used to produce high-quality fashion images.
    * **Veo 3** generates stylized runway videos.
+   * **Gemini** writes social media posts.
 
 ## Target Audience
 
 AI Fashion House is designed for:
 
-* Fashion designers exploring new creative directions
-* Educators and students in fashion design programs
-* Archivists and curators seeking to combine history with generative AI
+* Fashion designers seeking design inspirations and showcase their designs visually
+* Educators or students in fashion design education
+* Archivists or curators seeking to combine design history with generative AI
 * Creators and developers interested in visual storytelling and AI-powered prototyping
 
 ## Technology Stack
 
-This project integrates:
+This project integrates ADK and various Google Cloud tech:
 
+* Agent Development Kit [(ADK)](https://google.github.io/adk-docs/)
 * Google Cloud (Vertex AI, BigQuery, Cloud Storage)
 * Gemini API and GenAI text/image embedding models
 * Imagen 3 and Veo 3 for advanced image and video synthesis
