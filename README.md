@@ -63,8 +63,16 @@ Each step of the workflow is managed by a dedicated agent:
 5. Visual and Video Generation (`marketing_agent` agent using Imagen 3 and Veo 4)
 
 ## Installation
+### Prerequisites:
 
-### Create and Activate A Virtual Environment with Python 11.0 or Higher
+1. Google Cloud SDK [(gcloud CLI)](https://cloud.google.com/sdk/docs/install) installed for authentication.
+   
+   - Terminal command: `gcloud init` and choose the project ID.
+   - Set a default login: `gcloud auth application-default login`.
+
+3. Access to Google Cloud: BigQuery, Gemini, Imagen 4, Veo 3 (public preview).
+
+### Virtual Environment with Python 11.0 or Higher
 
 ```bash
 python -m venv venv
@@ -103,13 +111,18 @@ BIGQUERY_VECTOR_INDEX_ID=met_data_index
 VEO2_MODEL_ID=veo-3.0-generate-preview
 IMAGEN_MODEL_ID=imagen-4.0-generate-preview-06-06
 
-MEDIA_FILES_BUCKET_GCS_URI=gs://myfiles2025
+MEDIA_FILES_BUCKET_GCS_URI=<gs://your-bucket-name>
 ```
+Note: you will need to update `.env` with your own:
+* Google API key (get it from [Google AI Studio](https://aistudio.google.com/app/apikey))
+* Google Cloud project id
+* Google Cloud bucket for storing generated images and videos
 
-### Set Up MET RAG(Retrieval-Augmented Generation)
+### Set Up MET RAG (Retrieval-Augmented Generation)
 
-To simplify the installation process, you can use the setup-rag command to automatically configure the MET RAG (Retrieval-Augmented Generation) environment on GCP BigQuery. This command sets up the required dataset, connection, and vector index for the MET RAG agent.
-In case the automated setup fails or you prefer manual deployment, we’ve also included the necessary BigQuery SQL scripts in the scripts/ folder.
+To simplify the installation process, you can use the `setup-rag` command to automatically configure the MET RAG (Retrieval-Augmented Generation) environment on GCP BigQuery. 
+This command sets up the required dataset, connection, and vector index for the `met_rag_agent`.
+In case the automated setup fails or you prefer manual deployment, we’ve also included the necessary BigQuery SQL scripts in the `scripts/` folder.
 
 ```bash
 ai-fashion-house setup-rag
@@ -127,7 +140,7 @@ Open your browser and navigate to:
 http://localhost:8080
 ```
 
-to access the AI Fashion House interface.
+to access the AI Fashion House web UI interface.
 
 ![Fashion House interface](https://raw.githubusercontent.com/margaretmz/ai-fashion-house/main/images/Screenshot1.png)
 
