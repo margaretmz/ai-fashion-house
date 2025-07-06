@@ -1,12 +1,9 @@
 # AI Fashion House
 
-A project built for the **[ADK Hackathon with Google Cloud](https://devpost.com/software/fashion-olu3gj)**, 
-**AI Fashion House** is a multi-agent system designed to help with finding design inspirations, 
-create fashion images, and then cinematic runway video.
-
-## What is AI Fashion House?
-
-AI Fashion House is an AI-powered fashion design system that transforms a design idea (via user prompts) into rich design visuals. Built on a modular, multi-agent architecture, it automates the entire creative pipeline—from concept to high-fidelity visual generation—by coordinating a set of intelligent, specialized agents.
+**AI Fashion House** is a project created for the [ADK Hackathon with Google Cloud](https://devpost.com/software/fashion-olu3gj). 
+It's a modular, multi-agent system that transforms fashion design ideas into beautiful visuals. 
+It automates the entire creative pipeline — from finding design inspirations to generating fashion images and then cinematic runway 
+videos — by coordinating a set of specialized, intelligent agents. It's built with [ADK](https://google.github.io/adk-docs/) and various Google Cloud tech.
 
 ## How It Works
 
@@ -37,16 +34,12 @@ The system relies on a multi-agent framework, where each agent handles a specifi
 
 ## Target Audience
 
-AI Fashion House is designed for:
-
 * Fashion designers seeking design inspirations and showcase their designs visually
 * Educators or students in fashion design education
 * Archivists or curators seeking to combine design history with generative AI
 * Creators and developers interested in visual storytelling and AI-powered prototyping
 
 ## Technology Stack
-
-This project integrates ADK and various Google Cloud tech:
 
 * Agent Development Kit [(ADK)](https://google.github.io/adk-docs/)
 * Google Cloud (Vertex AI, BigQuery, Cloud Storage)
