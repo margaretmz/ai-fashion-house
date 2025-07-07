@@ -143,18 +143,56 @@ async def handle_event(event: ADKEvent, websocket: WebSocket) -> None:
         })
 
 
+# async def send_artifacts(
+#     runner: InMemoryRunner,
+#     user_id: str,
+#     session_id: str,
+#     websocket: WebSocket
+# ) -> None:
+#     """Send all artifacts generated in a session to the WebSocket."""
+#     artifact_keys = await runner.artifact_service.list_artifact_keys(
+#         app_name=APP_NAME, user_id=user_id, session_id=session_id
+#     )
+#     desired_sorted_keys =["met_rag_results.csv", "moodboard.png", "generated_image.png", "generated_video.mp4"]
+#     for key in artifact_keys:
+#         artifact = await runner.artifact_service.load_artifact(
+#             app_name=APP_NAME, user_id=user_id, session_id=session_id, filename=key
+#         )
+#         logger.info(f"📦 Sending artifact: {key} ({artifact.inline_data.mime_type})")
+#         encoded = base64.b64encode(artifact.inline_data.data).decode("utf-8")
+#         await websocket.send_json({
+#             "event": "artifact",
+#             "data": {
+#                 "filename": key,
+#                 "mime_type": artifact.inline_data.mime_type,
+#                 "content": encoded
+#             }
+#         })
 async def send_artifacts(
     runner: InMemoryRunner,
     user_id: str,
     session_id: str,
     websocket: WebSocket
 ) -> None:
-    """Send all artifacts generated in a session to the WebSocket."""
+    """Send all artifacts generated in a session to the WebSocket in a defined order, including section names."""
     artifact_keys = await runner.artifact_service.list_artifact_keys(
         app_name=APP_NAME, user_id=user_id, session_id=session_id
     )
 
-    for key in artifact_keys:
+    # Mapping from filename to section name
+    artifact_sections = {
+        "met_rag_results.csv": "Design Inspirations",
+        "moodboard.png": "Design Inspirations",
+        "generated_image.png": "Fashion image generated with Imagen 4",
+        "generated_video.mp4": "Runway video with music generated with Veo 3"
+    }
+
+    desired_sorted_keys = list(artifact_sections.keys())
+    ordered_keys = [k for k in desired_sorted_keys if k in artifact_keys]
+    extras = [k for k in artifact_keys if k not in desired_sorted_keys]
+    final_keys = ordered_keys + extras
+
+    for key in final_keys:
         artifact = await runner.artifact_service.load_artifact(
             app_name=APP_NAME, user_id=user_id, session_id=session_id, filename=key
         )
@@ -165,9 +203,12 @@ async def send_artifacts(
             "data": {
                 "filename": key,
                 "mime_type": artifact.inline_data.mime_type,
+                "section_name": artifact_sections.get(key, key),  # fallback to filename if not mapped
                 "content": encoded
             }
         })
+
+
 
 async def send_state(
     runner: InMemoryRunner,

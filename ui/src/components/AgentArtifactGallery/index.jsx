@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Grid,
-  Card,
-  CardMedia,
-  CardContent,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   Typography,
   Dialog,
   DialogTitle,
@@ -15,9 +14,11 @@ import {
   TableRow,
   TableCell,
   TableBody,
-  Box
+  Box,
+  Stack,
+  CardMedia
 } from '@mui/material';
-import { Stack } from '@mui/material'; // Add this import
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ImageIcon from '@mui/icons-material/Image';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import TableChartIcon from '@mui/icons-material/TableChart';
@@ -31,7 +32,6 @@ const columnsToShow = [
   'distance',
   "gcs_url"
 ];
-
 
 export default function AgentArtifactGallery({ artifacts }) {
   const [open, setOpen] = useState(false);
@@ -63,21 +63,32 @@ export default function AgentArtifactGallery({ artifacts }) {
   };
 
   const parsedCsv = useMemo(() => {
-  if (selectedItem?.mime_type === 'text/csv' && selectedItem.content) {
-    try {
-      const csvString = atob(selectedItem.content);
-      const result = Papa.parse(csvString, {
-        header: true,
-        skipEmptyLines: true,
-      });
-      return result.data;
-    } catch (err) {
-      console.error('Error parsing CSV with PapaParse:', err);
-      return null;
+    if (selectedItem?.mime_type === 'text/csv' && selectedItem.content) {
+      try {
+        const csvString = atob(selectedItem.content);
+        const result = Papa.parse(csvString, {
+          header: true,
+          skipEmptyLines: true,
+        });
+        return result.data;
+      } catch (err) {
+        console.error('Error parsing CSV with PapaParse:', err);
+        return null;
+      }
     }
-  }
-  return null;
-}, [selectedItem]);
+    return null;
+  }, [selectedItem]);
+
+  // Group artifacts by section_name
+  const groupedArtifacts = useMemo(() => {
+    const groups = {};
+    artifacts?.forEach((item) => {
+      const section = item.section_name || 'Other';
+      if (!groups[section]) groups[section] = [];
+      groups[section].push(item);
+    });
+    return groups;
+  }, [artifacts]);
 
   if (!artifacts || artifacts.length === 0) {
     return (
@@ -90,62 +101,69 @@ export default function AgentArtifactGallery({ artifacts }) {
   return (
     <>
       <Stack spacing={2}>
-      {artifacts.map((item, index) => (
-        <Card key={index} sx={{ width: '100%' }}>
-          {item.mime_type?.startsWith('image/') && (
-            <CardMedia
-              component="img"
-              image={getMediaSource(item)}
-              alt={item.caption || 'Generated image'}
-              onClick={() => handleOpen(item)}
-              sx={{ cursor: 'pointer', width: '100%', objectFit: 'contain' }}
-            />
-          )}
-         {item.mime_type?.startsWith('video/') && (
-          <Box
-            onClick={() => handleOpen(item)}
-            sx={{ cursor: 'pointer', width: '100%' }}
-          >
-            <video
-              src={getMediaSource(item)}
-              controls={false}
-              style={{
-                width: '100%',
-                objectFit: 'contain',
-                pointerEvents: 'none' // Prevent video controls from reacting to clicks here
-              }}
-            />
-          </Box>
-          )}
-          {item.mime_type === 'text/csv' && (
-            <CardContent>
-              <Typography variant="body1" fontWeight="bold">
-                {item.filename}
-              </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={() => handleOpen(item)}
-                sx={{ mt: 1 }}
-              >
-                View CSV
-              </Button>
-            </CardContent>
-          )}
+        {Object.entries(groupedArtifacts).map(([sectionName, sectionArtifacts], idx) => (
+          <Accordion key={idx} defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="h6">{sectionName}</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <Stack spacing={2}>
+                {sectionArtifacts.map((item, i) => (
+                  <Box key={i}>
+                    {item.mime_type?.startsWith('image/') && (
+                      <CardMedia
+                        component="img"
+                        image={getMediaSource(item)}
+                        alt={item.caption || 'Image'}
+                        onClick={() => handleOpen(item)}
+                        sx={{ cursor: 'pointer', width: '100%', objectFit: 'contain' }}
+                      />
+                    )}
+                    {item.mime_type?.startsWith('video/') && (
+                      <Box
+                        onClick={() => handleOpen(item)}
+                        sx={{ cursor: 'pointer', width: '100%' }}
+                      >
+                        <video
+                          src={getMediaSource(item)}
+                          controls={false}
+                          style={{
+                            width: '100%',
+                            objectFit: 'contain',
+                            pointerEvents: 'none',
+                          }}
+                        />
+                      </Box>
+                    )}
+                    {item.mime_type === 'text/csv' && (
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {item.filename}
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => handleOpen(item)}
+                          sx={{ mt: 1 }}
+                        >
+                          View CSV
+                        </Button>
+                      </Box>
+                    )}
+                    <Box display="flex" alignItems="center" gap={1} mt={1}>
+                      {getIcon(item.mime_type)}
+                      <Typography variant="caption" color="text.secondary">
+                        {item.caption || item.filename}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
 
-
-          <CardContent>
-            <Box display="flex" alignItems="center" gap={1}>
-              {getIcon(item.mime_type)}
-              <Typography variant="body2" color="text.secondary">
-                {item.caption || item.filename || item.mime_type}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
-      ))}
-    </Stack>
-
+              </Stack>
+            </AccordionDetails>
+          </Accordion>
+        ))}
+      </Stack>
 
       <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
         <DialogTitle>{selectedItem?.filename || 'Preview'}</DialogTitle>
@@ -166,25 +184,25 @@ export default function AgentArtifactGallery({ artifacts }) {
           )}
           {selectedItem?.mime_type === 'text/csv' && parsedCsv && (
             <Table size="small">
-            <TableHead>
-              <TableRow>
-                {columnsToShow.map((col, idx) => (
-                  <TableCell key={idx}>{col}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {parsedCsv.map((row, rowIdx) => (
-                <TableRow key={rowIdx}>
-                  {columnsToShow.map((col, colIdx) => (
-                    <TableCell key={colIdx}>
-                      {row[col] !== undefined ? row[col] : ''}
-                    </TableCell>
+              <TableHead>
+                <TableRow>
+                  {columnsToShow.map((col, idx) => (
+                    <TableCell key={idx}>{col}</TableCell>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {parsedCsv.map((row, rowIdx) => (
+                  <TableRow key={rowIdx}>
+                    {columnsToShow.map((col, colIdx) => (
+                      <TableCell key={colIdx}>
+                        {row[col] !== undefined ? row[col] : ''}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </DialogContent>
         <DialogActions>

@@ -9,6 +9,7 @@ import pandas as pd
 from dotenv import load_dotenv, find_dotenv
 from google.adk.tools import ToolContext
 from google.cloud import bigquery, storage
+from pydantic import BaseModel
 
 from ai_fashion_house.utils.gcp_utils import get_authenticated_genai_client
 from ai_fashion_house.utils.image_utils import pil_image_to_png_bytes, create_moodboard
@@ -35,6 +36,15 @@ bq_client = bigquery.Client(project=GOOGLE_PROJECT_ID, location=BIGQUERY_REGION)
 gcs_client = storage.Client(project=GOOGLE_PROJECT_ID)
 genai_client = get_authenticated_genai_client()
 
+class TimePeriod(BaseModel):
+    """
+    Represents a period in fashion history with start and end years.
+    """
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
+
+    def __str__(self):
+        return f"{self.start_year}-{self.end_year}" if self.start_year and self.end_year else "Unknown Period"
 
 def execute_sql_bigquery(sql: str) -> pd.DataFrame:
     """
@@ -118,47 +128,91 @@ def enhance_query(query: str) -> str:
     # Safely extract text
     return response.text.strip() if response.text else query
 
+def extract_start_end_year_from_prompt(prompt: str) -> TimePeriod:
+    """
+    Extracts the start and end year from a user prompt if present.
+
+    Args:
+        prompt (str): User query string.
+
+    Returns:
+        Optional[str]: A string formatted as "start_year-end_year" if both years are found, otherwise None.
+    """
+    query = (
+        "Based on the user query, extract the start and end years of the fashion period. "
+        "If both years are found, return them in json format, "
+        "If not, return None. "
+        "User Query: "
+        f"{prompt}"
+    )
+    response = genai_client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[types.Part.from_text(text=query)],
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=TimePeriod
+        )
+    )
+    return response.parsed
 
 
-
-def search_fashion_embeddings(query: str, top_k: int = 6, search_fraction: float = 0.01) -> pd.DataFrame:
+def search_fashion_embeddings(
+    query: str,
+    top_k: int = 6,
+    search_fraction: float = 0.01,
+    time_period: TimePeriod = None
+) -> pd.DataFrame:
     """
     Performs a vector similarity search using a fashion-related query on a BigQuery embedding table.
 
     Args:
         query (str): Text to embed and search against the vector database.
-        top_k (int, optional): Number of top results to return. Defaults to 6.
-        search_fraction (float, optional): Fraction of the vector index to search. Defaults to 0.01.
+        top_k (int): Number of top results to return. Defaults to 6.
+        search_fraction (float): Fraction of the vector index to search. Defaults to 0.01.
+        time_period (TimePeriod, optional): Filter results by start and/or end year.
 
     Returns:
-        pd.DataFrame: A DataFrame with matching content, distances, and image URLs.
+        pd.DataFrame: A DataFrame with matching results including content, distance, and image URL.
     """
-    query = enhance_query(query)
+    embedding_subquery = f"""
+        SELECT text_embedding, content AS query
+        FROM ML.GENERATE_TEXT_EMBEDDING(
+            MODEL `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_EMBEDDINGS_MODEL_ID}`,
+            (SELECT "{query}" AS content)
+        )
+    """
+
     sql = f"""
-    SELECT 
-    base.object_id,
-    base.object_name,
-    base.object_begin_date,
-    base.object_end_date,
-    base.content, 
-    base.gcs_url, 
-    query.query, 
-    distance
-    FROM VECTOR_SEARCH(
-        TABLE `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_TABLE_ID}_embeddings`,
-        'text_embedding',
-        (
-            SELECT text_embedding, content AS query
-            FROM ML.GENERATE_TEXT_EMBEDDING(
-                MODEL `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_EMBEDDINGS_MODEL_ID}`,
-                (SELECT "{query}" AS content)
-            )
-        ),
-        top_k => {top_k},
-        OPTIONS => '{{"fraction_lists_to_search": {search_fraction}}}'
-    )
+        SELECT 
+            base.object_id,
+            base.object_name,
+            base.object_begin_date,
+            base.object_end_date,
+            base.content, 
+            base.gcs_url, 
+            query.query, 
+            distance
+        FROM VECTOR_SEARCH(
+            TABLE `{GOOGLE_PROJECT_ID}.{BIGQUERY_DATASET_ID}.{BIGQUERY_TABLE_ID}_embeddings`,
+            'text_embedding',
+            ({embedding_subquery}),
+            top_k => {top_k},
+            OPTIONS => '{{"fraction_lists_to_search": {search_fraction}}}'
+        )
     """
+
+    filters = []
+    if time_period:
+        if time_period.start_year is not None:
+            filters.append(f"base.object_begin_date >= {time_period.start_year}")
+        if time_period.end_year is not None:
+            filters.append(f"base.object_end_date <= {time_period.end_year}")
+    if filters:
+        sql += " WHERE " + " AND ".join(filters)
+
+    sql += " ORDER BY distance ASC"
     return execute_sql_bigquery(sql)
+
 
 async def retrieve_met_images(user_query: str, top_k: int = 6, search_fraction: float = 0.01, tool_context: ToolContext = None) -> dict:
     """
@@ -177,7 +231,14 @@ async def retrieve_met_images(user_query: str, top_k: int = 6, search_fraction: 
         Optional[List[str]]: A list of GCS URLs to matching images, or None if no matches found.
     """
     try:
-        results = search_fashion_embeddings(user_query , top_k=top_k, search_fraction=search_fraction)
+        logger.info(f"[🔍] User query: {user_query}")
+        time_period: TimePeriod = extract_start_end_year_from_prompt(user_query)
+        logger.info(f"[📅] Extracted date period: {time_period}")
+
+        enhanced_query = enhance_query(user_query).replace('"', '\\"')  # Escape quotes safely
+        logger.info(f"[🔍] Enhanced query: {enhanced_query}")
+
+        results = search_fashion_embeddings(enhanced_query , top_k=top_k, search_fraction=search_fraction, time_period=None)
         if results.empty:
             logger.warning("[⚠️] No matches found.")
             return {
@@ -212,6 +273,7 @@ async def retrieve_met_images(user_query: str, top_k: int = 6, search_fraction: 
         output_file = output_folder / "moodboard.png"
         moodboard_image.save(output_file)
         logger.info(f"[🖼️] Moodboard saved @ {output_file}")
+        logger.info(f"[📸] Retrieved results: {results}")
         return {
             "status": "success",
             "result": image_urls,
@@ -259,9 +321,10 @@ if __name__ == '__main__':
     for table in tables:
         logger.info(f"• {table.project}.{table.table_id}")
 
-    query = ("I’m looking for inspiration for a bohemian-style maxi dress with floral prints and "
-             "flowing sleeves, perfect for a summer festival.")
-    # query = "Help me design a dress inspired by 1950's New Look."
+    # query = ("I’m looking for inspiration for a bohemian-style maxi dress with floral prints and "
+    #          "flowing sleeves, perfect for a summer festival.")
+    query = "Help me design a dress inspired by 1950's New Look."
+
     image_results = run_retrieve_met_images_sync(
         user_query=query,
         top_k=8,

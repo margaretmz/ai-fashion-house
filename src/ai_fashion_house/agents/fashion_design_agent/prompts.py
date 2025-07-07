@@ -26,7 +26,9 @@ def get_instructions() -> str:
 
     📝 Output Format:
     Return **only** the final enhanced prompt in the structure below:
-
+    
+    MAKE SURE that there is only one fashion model in the image.
+    
     Enhanced Prompt: [A vivid fashion description combining modern and historical visual elements.]  
     Model Details: [The model’s physical appearance as described by `get_model_details`.]  x
     Model Animation and Motion: [A detailed description of the model’s movement, captured mid-stride with runway elegance.]

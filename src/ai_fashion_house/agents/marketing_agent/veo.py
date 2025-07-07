@@ -72,6 +72,7 @@ async def save_generated_video(video: types.Video, output_folder: Path, tool_con
         await tool_context.save_artifact("generated_video.mp4", types.Part.from_bytes(
             data=video_bytes, mime_type=video_mime_type
         ))
+        tool_context.state["generated_video_url"] = video_gcs_uri
 
     output_path = output_folder / f"generated_video.mp4"
     async with aiofiles.open(output_path, "wb") as out_file:
@@ -121,7 +122,11 @@ async def generate_video(image_gcs_uri: str, tool_context: Optional[ToolContext]
         await save_generated_video(generated_video, media_files_local_path, tool_context)
         logger.info(f"Video generation response: {generated_video.uri}")
         logger.info("Video generated successfully")
-        return {"status": "success", "message": "Video generated successfully"}
+        return {
+            "status": "success",
+            "message": "Video generated successfully",
+            "video_gcs_uri": generated_video.uri
+        }
     except Exception as e:
         logger.exception("Error in generate_video")
         return {"status": "error", "message": str(e)}
