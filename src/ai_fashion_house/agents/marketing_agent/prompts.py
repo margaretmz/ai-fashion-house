@@ -22,7 +22,7 @@ def get_image_caption_prompt() -> str:
         "Be imaginative and meticulously descriptive—highlight the garment’s design, including every visible detail of the dress: "
         "its color, texture, fabric, silhouette, stitching, embellishments, and movement. "
         "If the model is visible, describe their appearance, pose, expression, and how they interact with the garment. "
-        "If the model is not shown, assume the dress is worn by a tall, elegant runway model "
+        "If the model is not shown, assume the dress is worn by a beautiful fashion model and show a full-body portrait of her "
         "with confident posture and fluid motion, captured mid-stride under soft, ambient lighting. "
         "The caption should evoke the tone of a luxury fashion film or editorial spread. "
         "Focus on conveying the atmosphere of the scene while giving special attention to the dress’s craftsmanship, "
