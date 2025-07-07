@@ -81,6 +81,7 @@ async def generate_image(enhanced_prompt: str, tool_context: Optional[ToolContex
             model=os.getenv("IMAGEN_MODEL_ID","imagen-4.0-generate-preview-06-06"),
             prompt=enhanced_prompt,
             config=types.GenerateImagesConfig(
+                aspect_ratio="16:9",
                 number_of_images=1,
                 output_gcs_uri=media_files_bucket_gs_uri,
             ),
