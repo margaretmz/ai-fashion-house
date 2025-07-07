@@ -168,8 +168,8 @@ export default function HomePage() {
               <Box sx={{ width: '100%' }}>
                 <Tabs value={tab} onChange={(_, newValue) => setTab(newValue)} centered>
                   <Tab label="Agents Log" />
-                  <Tab label="State Log" disabled={Object.keys(agentState).length === 0} />
-                  <Tab label="Artifacts Gallery" disabled={agentArtifacts.length === 0} />
+                  <Tab label="Design Log" disabled={Object.keys(agentState).length === 0} />
+                  <Tab label="Media Gallery" disabled={agentArtifacts.length === 0} />
                 </Tabs>
 
                 <Box sx={{ mt: 3 }}>
