@@ -4,6 +4,8 @@
 It's a modular, multi-agent system that transforms fashion design ideas into beautiful visuals. 
 It automates the entire creative pipeline — from finding design inspirations to generating fashion images and then cinematic runway 
 videos — by coordinating a set of specialized, intelligent agents. It's built with [ADK](https://google.github.io/adk-docs/) and various Google Cloud tech.
+Read [our blog post for the project on Medium](https://medium.com/google-cloud/ai-fashion-house-adk-google-cloud-d12983cd3393) 
+for details on how we built the project.
 
 ## How It Works
 
